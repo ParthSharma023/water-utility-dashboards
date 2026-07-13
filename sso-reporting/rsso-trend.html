@@ -1,0 +1,739 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RSSO Trend | SSO Reporting Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── Lock page to one screen ─────────────────────────────────────────── */
+    html, body { height: 100%; overflow: hidden; }
+    body { min-width: 0; }
+
+    .page-body {
+      height: calc(100vh - 142px);   /* topbar ~98px + subtabs ~44px */
+      display: flex;
+      flex-direction: column;
+      padding: 0 18px 6px;
+      overflow: hidden;
+    }
+
+    /* ── 2-col grid fills remaining height ───────────────────────────────── */
+    .rsso-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0,23fr) minmax(0,77fr);
+      gap: 12px;
+      align-items: stretch;
+    }
+
+    /* ── Columns ─────────────────────────────────────────────────────────── */
+    .left-col, .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    /* ── Panel card ──────────────────────────────────────────────────────── */
+    .p-card {
+      background: linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 6px 24px rgba(31,39,92,.45);
+      min-width: 0;
+      max-width: 100%;
+      box-sizing: border-box;
+    }
+    .p-title {
+      background: #001E60;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      padding: 5px 10px;
+      border-radius: 7px 7px 0 0;
+      letter-spacing: .01em;
+      flex-shrink: 0;
+    }
+    .p-body { padding: 8px 10px 10px; }
+
+    /* ── Date slicer ─────────────────────────────────────────────────────── */
+    .date-slicer { display:flex; flex-direction:column; gap:7px; }
+    .date-row    { display:flex; align-items:center; gap:6px; }
+    .date-label  { font-size:11px; color:var(--muted); width:30px; }
+    .date-input {
+      flex: 1;
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 5px;
+      border: 1px solid rgba(108,143,186,.36);
+      background: #102032;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+    .date-input::-webkit-calendar-picker-indicator { filter:invert(1); opacity:.7; }
+
+    /* ── Cause list panel (flex-1, scrolls inside) ───────────────────────── */
+    .cause-panel {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .cause-list {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 4px 6px 6px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,.3) transparent;
+      list-style: none;
+      margin: 0;
+    }
+    .cause-list::-webkit-scrollbar { width:4px; }
+    .cause-list::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+
+    .cause-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 6px;
+      cursor: pointer;
+      border-radius: 4px;
+      font-size: 12px;
+      user-select: none;
+    }
+    .cause-item:hover { background:rgba(40,77,124,.35); }
+    .cause-item input[type=checkbox] {
+      accent-color: #118DFF;
+      width: 13px; height: 13px;
+      cursor: pointer;
+      pointer-events: none;   /* clicks handled by the li */
+      flex-shrink: 0;
+    }
+    .cause-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+    /* ── Dist chart panel ────────────────────────────────────────────────── */
+    .dist-wrap { position:relative; height:176px; }
+
+    /* ── Chart header (title + toggle) ───────────────────────────────────── */
+    .chart-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #001E60;
+      border-radius: 7px 7px 0 0;
+      padding: 4px 10px;
+    }
+    .chart-header-title { color:#fff; font-size:12px; font-weight:600; }
+    .toggle-wrap { display:flex; gap:4px; }
+    .toggle-btn {
+      padding: 2px 9px;
+      border-radius: 4px;
+      border: 1px solid rgba(108,143,186,.4);
+      background: transparent;
+      color: var(--muted);
+      font: inherit; font-size: 11px;
+      cursor: pointer;
+    }
+    .toggle-btn.active { background:#12239E; border-color:#12239E; color:#fff; }
+
+    /* ── KPI badge in chart header ───────────────────────────────────────── */
+    .chart-and-card { min-height: 0; min-width: 0; width: 100%; max-width: 100%; }
+    .chart-and-card .p-card { width: 100%; overflow: hidden; }
+    .card-badge {
+      background: linear-gradient(180deg,rgba(26,39,57,.98),rgba(20,31,47,.98));
+      border: 1px solid #1F275C;
+      border-radius: 5px;
+      padding: 2px 10px 4px;
+      text-align: center;
+      min-width: 104px;
+      flex-shrink: 0;
+    }
+    .card-label { font-size:9px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+    .card-value { font-size:20px; font-weight:700; color:var(--text); line-height:1.1; }
+
+    /* ── Horizontal scroll for trend chart ───────────────────────────────── */
+    .chart-scroll-outer {
+      overflow-x: auto;
+      overflow-y: hidden;
+      min-width: 0;
+      width: 100%;
+      max-width: 100%;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,.3) transparent;
+    }
+    .chart-scroll-outer::-webkit-scrollbar { height:5px; }
+    .chart-scroll-outer::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+    .chart-scroll-inner { min-width:100%; position:relative; height:250px; }
+
+    /* ── Table panel (flex-1, scrolls inside) ────────────────────────────── */
+    .table-card {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+    .tbl-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      overflow-x: auto;
+      border-radius: 0 0 7px 7px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,.25) transparent;
+    }
+    .tbl-wrap::-webkit-scrollbar { width:5px; height:5px; }
+    .tbl-wrap::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+
+    .data-tbl { width:100%; border-collapse:collapse; font-size:12px; }
+    .data-tbl th, .data-tbl td { padding:5px 9px; border-bottom:1px solid rgba(113,144,186,.1); white-space:nowrap; }
+    .data-tbl thead th {
+      background: rgba(22,33,55,.97);
+      font-weight: 700;
+      color: rgba(222,232,244,.84);
+      cursor: pointer;
+      user-select: none;
+      text-align: left;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+    .data-tbl thead th:hover { background:rgba(32,50,88,.97); }
+    .data-tbl thead th.col-sorted { color:#118DFF; }
+    .sort-arr { margin-left:3px; opacity:.55; font-size:10px; }
+    .data-tbl td { color:var(--text); }
+    .data-tbl td.num { text-align:right; }
+    .data-tbl tbody tr:nth-child(odd)  { background:rgba(21,35,52,.88); }
+    .data-tbl tbody tr:nth-child(even) { background:rgba(18,29,43,.88); }
+    .data-tbl tbody tr:hover { background:rgba(40,77,124,.5); }
+    .count-chip {
+      display:inline-block;
+      background:#12239E; color:#fff;
+      border-radius:10px; padding:1px 8px;
+      font-size:11px; font-weight:700;
+      min-width:22px; text-align:center;
+    }
+    .date-list-cell { max-width:160px; overflow:hidden; text-overflow:ellipsis; }
+
+    /* ── Filter bar ──────────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding: 6px 0 5px;
+      margin-bottom: 6px;
+      font-size: 12px;
+      color: var(--muted);
+      border-bottom: 1px solid rgba(122,156,199,.1);
+      flex-shrink: 0;
+    }
+    .filter-bar strong { color:var(--text); }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <a href="index.html"
+       style="width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,#118DFF,#12239E);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;letter-spacing:.03em;text-decoration:none;flex-shrink:0;">SSO</a>
+    <div>
+      <h1 style="font-size:22px;margin:0;font-weight:700;">SSO Report</h1>
+      <p style="margin:3px 0 0;font-size:13px;color:var(--muted);">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ──────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html"       style="text-decoration:none;font-size:14px;">SSO Analysis</a>
+  <a class="subtab-ghost" href="rsso-analysis.html"      style="text-decoration:none;font-size:14px;">RSSO Analysis</a>
+  <a class="subtab-ghost" href="sso-monthly-report.html" style="text-decoration:none;font-size:14px;">SSO Monthly Report</a>
+  <a class="subtab-ghost" href="full-gis-data.html"      style="text-decoration:none;font-size:14px;">Full GIS SSO/RSSO Data</a>
+  <button class="subtab active" style="font-size:14px;">RSSO Trend</button>
+</div>
+
+<!-- ── Page body ────────────────────────────────────────────────────────── -->
+<div class="page-body">
+
+  <div class="filter-bar" id="filter-bar"></div>
+
+  <div class="rsso-grid">
+
+    <!-- ── LEFT COLUMN ──────────────────────────────────────────────────── -->
+    <div class="left-col">
+
+      <!-- Date range slicer -->
+      <div class="p-card">
+        <div class="p-title">RSSO Time Range</div>
+        <div class="p-body">
+          <div class="date-slicer">
+            <div class="date-row">
+              <span class="date-label">Start</span>
+              <input id="sl-start" type="date" class="date-input" />
+            </div>
+            <div class="date-row">
+              <span class="date-label">End</span>
+              <input id="sl-end" type="date" class="date-input" />
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Cause checkbox slicer - fills remaining left-col height -->
+      <div class="p-card cause-panel">
+        <div class="p-title">Latest RSSO Cause</div>
+        <ul class="cause-list" id="cause-list"></ul>
+      </div>
+
+      <!-- Distribution chart -->
+      <div class="p-card">
+        <div class="p-title">RSSO Count Distribution</div>
+        <div class="p-body" style="padding:6px 8px 8px;">
+          <div class="dist-wrap">
+            <canvas id="chart-dist"></canvas>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /left-col -->
+
+    <!-- ── RIGHT COLUMN ─────────────────────────────────────────────────── -->
+    <div class="right-col">
+
+      <!-- Column chart + KPI -->
+      <div class="chart-and-card">
+        <div class="p-card">
+          <div class="chart-header">
+            <span class="chart-header-title">RSSO Trend</span>
+            <div class="toggle-wrap">
+              <button class="toggle-btn"        id="btn-year"  onclick="setView(false)">By Year</button>
+              <button class="toggle-btn active" id="btn-month" onclick="setView(true)">By Month</button>
+            </div>
+            <div class="card-badge">
+              <div class="card-label">Nbr of RSSO</div>
+              <div class="card-value" id="card-val">-</div>
+            </div>
+          </div>
+          <div class="p-body" style="padding:6px 8px 8px;">
+            <div class="chart-scroll-outer" id="trend-outer">
+              <div class="chart-scroll-inner" id="trend-inner">
+                <canvas id="chart-trend"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Detail table - fills remaining right-col height -->
+      <div class="p-card table-card">
+        <div class="p-title">RSSO Detail</div>
+        <div class="tbl-wrap">
+          <table class="data-tbl">
+            <thead><tr id="tbl-head"></tr></thead>
+            <tbody id="tbl-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div><!-- /right-col -->
+
+  </div><!-- /rsso-grid -->
+</div><!-- /page-body -->
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────────
+const CAUSE_COLORS = {
+  'Grease Blockage':    '#E66C37',
+  'Wet Weather':        '#118DFF',
+  'Structural':         '#12239E',
+  'Rags/Wipes':         '#197278',
+  'Power Outage':       '#C0392B',
+  'Temporary Blockage': '#1C6E8C',
+  'Lift Station':       '#6B007B',
+  'Roots':              '#4B8E8D',
+  'Unknown':            '#555555',
+};
+const CAUSE_ORDER = Object.keys(CAUSE_COLORS);
+const ALL_CAUSES  = [...new Set(window.DATA_RSSO_TREND.rows.map(r => r.excursionCause))].sort(
+  (a, b) => {
+    const ai = CAUSE_ORDER.indexOf(a), bi = CAUSE_ORDER.indexOf(b);
+    if (ai < 0 && bi < 0) return a.localeCompare(b);
+    if (ai < 0) return 1; if (bi < 0) return -1;
+    return ai - bi;
+  }
+);
+const GRID_COLOR = 'rgba(139,175,214,0.12)';
+const TICK_COLOR = 'rgba(180,192,208,0.85)';
+const PX_PER_BAR = 50;
+
+// ── State ──────────────────────────────────────────────────────────────────
+let startDate, endDate;
+let selectedCauses = new Set();   // empty = all pass
+let viewByMonth    = true;        // default: By Month
+let sortCol = 'ssoCount', sortDir = -1;
+let chartTrend = null, chartDist = null;
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function parseDate(s) {
+  if (!s) return null;
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function toInput(d) {
+  return d.getFullYear() + '-' +
+    String(d.getMonth() + 1).padStart(2, '0') + '-' +
+    String(d.getDate()).padStart(2, '0');
+}
+function fmtDate(s) {
+  if (!s) return '-';
+  return parseDate(s).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function cc(c) { return CAUSE_COLORS[c] || '#888'; }
+function isCauseActive(c) { return selectedCauses.size === 0 || selectedCauses.has(c); }
+
+// ── Filter ─────────────────────────────────────────────────────────────────
+function filtered() {
+  return window.DATA_RSSO_TREND.rows.filter(r => {
+    const d = parseDate(r.lastSSODate);
+    if (!d || d < startDate || d > endDate) return false;
+    if (selectedCauses.size > 0 && !selectedCauses.has(r.excursionCause)) return false;
+    return true;
+  });
+}
+
+// ── Inline Chart.js plugins ────────────────────────────────────────────────
+// Draws total count above each stacked column bar
+const stackTotalPlugin = {
+  id: 'stackTotal',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    const nDs = chart.data.datasets.length;
+    if (!nDs) return;
+    const lastMeta = chart.getDatasetMeta(nDs - 1);
+    lastMeta.data.forEach((bar, i) => {
+      const total = chart.data.datasets.reduce((s, ds) => s + (ds.data[i] || 0), 0);
+      if (!total) return;
+      ctx.save();
+      ctx.font = '600 10px "Segoe UI",Arial,sans-serif';
+      ctx.fillStyle = 'rgba(241,245,251,0.92)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(total, bar.x, bar.y - 2);
+      ctx.restore();
+    });
+  },
+};
+
+// Draws value label at end of each horizontal bar
+const hBarLabelPlugin = {
+  id: 'hBarLabel',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds, i) => {
+      chart.getDatasetMeta(i).data.forEach((bar, j) => {
+        const val = ds.data[j];
+        if (!val) return;
+        ctx.save();
+        ctx.font = '600 10px "Segoe UI",Arial,sans-serif';
+        ctx.fillStyle = 'rgba(241,245,251,0.92)';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(val, bar.x + 5, bar.y);
+        ctx.restore();
+      });
+    });
+  },
+};
+
+// ── Trend chart ────────────────────────────────────────────────────────────
+function renderTrend(rows) {
+  const byBucket = {};
+  rows.forEach(r => {
+    const key = viewByMonth ? r.lastSSODate.slice(0, 7) : r.lastSSODate.slice(0, 4);
+    if (!byBucket[key]) byBucket[key] = {};
+    byBucket[key][r.excursionCause] = (byBucket[key][r.excursionCause] || 0) + 1;
+  });
+  const buckets = Object.keys(byBucket).sort();
+  const labels  = buckets.map(b => {
+    if (!viewByMonth) return b;
+    const [y, m] = b.split('-').map(Number);
+    return new Date(y, m - 1, 1).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+  });
+
+  const causesInData = CAUSE_ORDER.filter(c => buckets.some(b => byBucket[b][c]));
+  const datasets = causesInData.map(c => ({
+    label: c,
+    data: buckets.map(b => byBucket[b][c] || 0),
+    backgroundColor: cc(c),
+    stack: 's',
+    borderRadius: 2,
+  }));
+
+  const inner = document.getElementById('trend-inner');
+  if (viewByMonth && buckets.length) {
+    inner.style.width = Math.max(buckets.length * PX_PER_BAR + 80, 500) + 'px';
+  } else {
+    inner.style.width = '';
+  }
+
+  if (chartTrend) chartTrend.destroy();
+  chartTrend = new Chart(document.getElementById('chart-trend'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: { color: TICK_COLOR, boxWidth: 11, font: { size: 11 }, padding: 10 },
+        },
+        tooltip: {
+          backgroundColor: 'rgba(12,21,34,.92)',
+          borderColor: 'rgba(139,175,214,.3)',
+          borderWidth: 1,
+          titleColor: '#f1f5fb',
+          bodyColor: '#b4c0d0',
+          callbacks: { footer: items => 'Total: ' + items.reduce((s, i) => s + i.raw, 0) },
+        },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          grid: { color: GRID_COLOR },
+          ticks: { color: TICK_COLOR, font: { size: 10 }, maxRotation: viewByMonth ? 45 : 0 },
+        },
+        y: {
+          stacked: true,
+          grid: { color: GRID_COLOR },
+          title: { display: true, text: 'Count of RSSO', color: TICK_COLOR, font: { size: 10 } },
+          ticks: { color: TICK_COLOR, font: { size: 10 } },
+        },
+      },
+    },
+    plugins: [stackTotalPlugin],
+  });
+}
+
+// ── Distribution chart ─────────────────────────────────────────────────────
+function renderDist(rows) {
+  const dist = {};
+  rows.forEach(r => { if (r.ssoCount) dist[r.ssoCount] = (dist[r.ssoCount] || 0) + 1; });
+  const counts = Object.keys(dist).map(Number).sort((a, b) => a - b);
+
+  if (chartDist) chartDist.destroy();
+  chartDist = new Chart(document.getElementById('chart-dist'), {
+    type: 'bar',
+    data: {
+      labels: counts.map(n => n + ' SSOs'),
+      datasets: [{ data: counts.map(n => dist[n]), backgroundColor: '#118DFF', borderRadius: 3 }],
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: { padding: { right: 34 } },   /* room for end-of-bar labels */
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(12,21,34,.92)',
+          borderColor: 'rgba(139,175,214,.3)',
+          borderWidth: 1,
+          titleColor: '#f1f5fb',
+          bodyColor: '#b4c0d0',
+          callbacks: { label: i => ' ' + i.raw + ' manhole' + (i.raw !== 1 ? 's' : '') },
+        },
+      },
+      scales: {
+        x: {
+          grid: { color: GRID_COLOR },
+          ticks: { color: TICK_COLOR, font: { size: 10 } },
+          title: { display: true, text: 'Manholes', color: TICK_COLOR, font: { size: 10 } },
+        },
+        y: { grid: { color: GRID_COLOR }, ticks: { color: TICK_COLOR, font: { size: 10 } } },
+      },
+    },
+    plugins: [hBarLabelPlugin],
+  });
+}
+
+// ── Card ───────────────────────────────────────────────────────────────────
+function renderCard(rows) {
+  document.getElementById('card-val').textContent =
+    new Set(rows.map(r => r.manhole)).size.toLocaleString();
+}
+
+// ── Table ──────────────────────────────────────────────────────────────────
+const COLS = [
+  { k: 'manhole',          label: 'Manhole',        num: false },
+  { k: 'startDate',        label: 'Start Date',     num: false },
+  { k: 'excursionCause',   label: 'Cause',          num: false },
+  { k: 'firstSSODate',     label: 'First SSO Date', num: false },
+  { k: 'ssoStartDateList', label: 'SSO Dates',      num: false },
+  { k: 'ssoCount',         label: 'SSO Count',      num: true  },
+  { k: 'basin',            label: 'Basin',          num: false },
+  { k: 'address',          label: 'Address',        num: false },
+  { k: 'wwtp',             label: 'WWTP',           num: false },
+];
+
+function renderTable(rows) {
+  const thead = document.getElementById('tbl-head');
+  thead.innerHTML = '';
+  COLS.forEach(col => {
+    const th = document.createElement('th');
+    const arrow = sortCol === col.k ? (sortDir === 1 ? '▲' : '▼') : '⇅';
+    th.className = sortCol === col.k ? 'col-sorted' : '';
+    th.innerHTML = `${col.label}<span class="sort-arr">${arrow}</span>`;
+    th.onclick = () => {
+      sortDir = sortCol === col.k ? -sortDir : (col.num ? -1 : 1);
+      sortCol = col.k;
+      renderTable(filtered());
+    };
+    thead.appendChild(th);
+  });
+
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[sortCol], bv = b[sortCol];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; if (bv == null) return -1;
+    return (typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv))) * sortDir;
+  });
+
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = '';
+  sorted.forEach(r => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td><strong>${r.manhole || '-'}</strong></td>` +
+      `<td>${fmtDate(r.startDate)}</td>` +
+      `<td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${cc(r.excursionCause)};margin-right:5px;vertical-align:middle;"></span>${r.excursionCause || '-'}</td>` +
+      `<td>${fmtDate(r.firstSSODate)}</td>` +
+      `<td class="date-list-cell" title="${r.ssoStartDateList || ''}">${r.ssoStartDateList || '-'}</td>` +
+      `<td class="num"><span class="count-chip">${r.ssoCount ?? '-'}</span></td>` +
+      `<td>${r.basin || '-'}</td>` +
+      `<td>${r.address || '-'}</td>` +
+      `<td>${r.wwtp || '-'}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Filter bar ─────────────────────────────────────────────────────────────
+function renderFilterBar(rows) {
+  const n = new Set(rows.map(r => r.manhole)).size;
+  const causeStr = selectedCauses.size === 0 ? 'all causes' : [...selectedCauses].join(', ');
+  document.getElementById('filter-bar').innerHTML =
+    `<strong>${n.toLocaleString()}</strong> RSSO locations &nbsp;·&nbsp;` +
+    `<strong>${rows.length.toLocaleString()}</strong> records &nbsp;·&nbsp;` +
+    `${fmtDate(toInput(startDate))} → ${fmtDate(toInput(endDate))} &nbsp;·&nbsp; ${causeStr}`;
+}
+
+// ── Cause toggle logic ─────────────────────────────────────────────────────
+function toggleCause(cause) {
+  if (selectedCauses.size === 0) {
+    // Was "all" - deselecting one means select all EXCEPT this one
+    ALL_CAUSES.forEach(c => { if (c !== cause) selectedCauses.add(c); });
+  } else if (selectedCauses.has(cause)) {
+    selectedCauses.delete(cause);
+    if (selectedCauses.size === 0) selectedCauses.add(cause); // prevent empty
+  } else {
+    selectedCauses.add(cause);
+    if (selectedCauses.size === ALL_CAUSES.length) selectedCauses.clear(); // all = clear
+  }
+}
+
+// ── Cause slicer render ────────────────────────────────────────────────────
+function renderCauseList() {
+  const ul = document.getElementById('cause-list');
+  ul.innerHTML = '';
+  ALL_CAUSES.forEach(cause => {
+    const li = document.createElement('li');
+    li.className = 'cause-item';
+    li.innerHTML =
+      `<input type="checkbox" ${isCauseActive(cause) ? 'checked' : ''}>` +
+      `<span class="cause-dot" style="background:${cc(cause)};"></span>` +
+      `<span>${cause}</span>`;
+    li.addEventListener('click', e => {
+      e.preventDefault();   // stop native checkbox toggle (we handle state)
+      toggleCause(cause);
+      renderCauseList();
+      render();
+    });
+    ul.appendChild(li);
+  });
+}
+
+// ── View toggle ────────────────────────────────────────────────────────────
+function setView(byMonth) {
+  viewByMonth = byMonth;
+  document.getElementById('btn-year').classList.toggle('active', !byMonth);
+  document.getElementById('btn-month').classList.toggle('active', byMonth);
+  render();
+}
+
+// ── Main render ────────────────────────────────────────────────────────────
+function render() {
+  const rows = filtered();
+  renderTrend(rows);
+  renderDist(rows);
+  renderCard(rows);
+  renderTable(rows);
+  renderFilterBar(rows);
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(function init() {
+  Chart.defaults.color       = TICK_COLOR;
+  Chart.defaults.font.family = '"Segoe UI", Arial, sans-serif';
+  Chart.defaults.font.size   = 11;
+
+  // Horizontal scroll via mouse wheel on trend chart area
+  document.getElementById('trend-outer').addEventListener('wheel', e => {
+    const el = document.getElementById('trend-outer');
+    if (el.scrollWidth <= el.clientWidth) return;
+    e.preventDefault();
+    el.scrollLeft += (Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY) * 2.5;
+  }, { passive: false });
+
+  // Date defaults: 2021-04-01 → latest date in data
+  const allDates  = window.DATA_RSSO_TREND.rows.map(r => r.lastSSODate).filter(Boolean).sort();
+  const latestStr = allDates[allDates.length - 1];
+  startDate = new Date(2021, 3, 1);   // 2021-04-01
+  endDate   = parseDate(latestStr);
+
+  const elS = document.getElementById('sl-start');
+  const elE = document.getElementById('sl-end');
+  elS.value = toInput(startDate);
+  elE.value = latestStr;
+  elS.min = allDates[0]; elS.max = latestStr;
+  elE.min = allDates[0]; elE.max = latestStr;
+
+  elS.addEventListener('change', e => {
+    if (e.target.value) startDate = parseDate(e.target.value);
+    if (startDate > endDate) { endDate = new Date(startDate); elE.value = toInput(endDate); }
+    render();
+  });
+  elE.addEventListener('change', e => {
+    if (e.target.value) endDate = parseDate(e.target.value);
+    if (endDate < startDate) { startDate = new Date(endDate); elS.value = toInput(startDate); }
+    render();
+  });
+
+  renderCauseList();
+  render();
+})();
+</script>
+</body>
+</html>

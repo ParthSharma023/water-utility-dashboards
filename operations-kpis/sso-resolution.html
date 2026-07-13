@@ -1,0 +1,772 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wastewater Operations KPIs - SSO Resolution Time</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+
+    /* ── Topbar ── */
+    .topbar { flex-shrink: 0; padding: 12px 18px; gap: 14px; align-items: center; }
+    .tb-title {
+      font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0;
+    }
+    .tb-refresh { text-align: right; white-space: nowrap; margin-left: auto; }
+    .tb-refresh-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .tb-refresh-val { font-size: 13px; color: #F10101; font-style: italic; font-weight: 600; }
+
+    .page-intro {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 12px;
+      border-top: 1px solid rgba(139,175,214,0.08);
+      border-bottom: 1px solid rgba(139,175,214,0.12);
+      background: rgba(8,18,32,0.34);
+    }
+    .page-kicker {
+      margin: 0 0 3px;
+      color: #48d0c9;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .page-heading {
+      margin: 0;
+      color: #fff;
+      font-size: 17px;
+      line-height: 1.15;
+      font-weight: 700;
+    }
+    .page-statement {
+      margin: 4px 0 0;
+      color: #b4c0d0;
+      font-size: 11px;
+      line-height: 1.35;
+      max-width: 760px;
+    }
+    .fy-control { display: flex; flex-direction: column; gap: 3px; min-width: 132px; }
+    .fy-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .fy-control select {
+      background: rgba(94,127,168,0.2); border: 1px solid rgba(124,160,204,0.3);
+      color: var(--text); padding: 5px 8px; border-radius: 7px; font-size: 12px; font-family: inherit;
+    }
+    .fy-control select option {
+      background: #1b2a3d;
+      color: #f1f5fb;
+    }
+
+    /* ── Page body: 3-col flex ── */
+    .page-body {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: row; gap: 8px;
+      padding: 8px 12px 12px;
+    }
+
+    /* ── Left sidebar ── */
+    .sidebar {
+      width: 214px; flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 5px;
+      min-height: 0; overflow-y: auto;
+      padding: 6px;
+      border: 1px solid rgba(139,175,214,0.14);
+      border-radius: 8px;
+      background: rgba(8,18,32,0.22);
+    }
+
+    .slicer-panel {
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px; padding: 6px 8px;
+    }
+    .slicer-panel-title {
+      font-size: 9px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #fff; background: #001E60;
+      margin: -6px -8px 6px; padding: 3px 8px; border-radius: 5px 5px 0 0;
+    }
+    .slicer-date { display: flex; flex-direction: column; gap: 4px; }
+    .slicer-date input[type="date"] {
+      background: rgba(94,127,168,0.2); border: 1px solid rgba(124,160,204,0.3);
+      color: var(--text); padding: 4px 6px; border-radius: 6px;
+      font-size: 11px; font-family: inherit; width: 100%;
+    }
+    .slicer-date-sep { font-size: 10px; color: var(--muted); text-align: center; }
+
+    .cb-list { display: flex; flex-direction: column; gap: 3px; max-height: 120px; overflow-y: auto; }
+    .cb-list.tall { max-height: 168px; }
+    .cb-item { display: flex; align-items: center; gap: 5px; cursor: pointer; }
+    .cb-item input[type="checkbox"] { accent-color: #3EC7C2; cursor: pointer; flex-shrink: 0; }
+    .cb-item label { font-size: 11px; color: var(--text); cursor: pointer; line-height: 1.3; }
+
+    .row-slicers { display: flex; gap: 5px; }
+    .row-slicers .slicer-panel { flex: 1; }
+
+    .calc-note {
+      background: rgba(26,39,57,0.88);
+      border: 1px solid rgba(139,175,214,0.22); border-radius: 7px;
+      padding: 9px 10px; font-size: 11px; color: #c6d2e0; line-height: 1.55;
+      flex: 1 1 auto; min-height: 0;
+    }
+    .calc-note-title { font-weight: 700; color: var(--text); font-size: 10px; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.05em; }
+    .calc-note p { display: none; }
+    .calc-note strong { color: #f1f5fb; }
+    .calc-rule { margin-top: 5px; }
+    .calc-rule span { color: #f1f5fb; font-weight: 700; }
+
+    .sidebar,
+    .cb-list,
+    .tbl-wrap,
+    .kpi-panel-body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.28) transparent;
+    }
+    .sidebar::-webkit-scrollbar,
+    .cb-list::-webkit-scrollbar,
+    .tbl-wrap::-webkit-scrollbar,
+    .kpi-panel-body::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    .sidebar::-webkit-scrollbar-thumb,
+    .cb-list::-webkit-scrollbar-thumb,
+    .tbl-wrap::-webkit-scrollbar-thumb,
+    .kpi-panel-body::-webkit-scrollbar-thumb {
+      background: rgba(139,175,214,0.28);
+      border-radius: 10px;
+    }
+    .sidebar::-webkit-scrollbar-track,
+    .cb-list::-webkit-scrollbar-track,
+    .tbl-wrap::-webkit-scrollbar-track,
+    .kpi-panel-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* ── Main column ── */
+    .main-col {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+
+    /* chart panel */
+    .chart-panel {
+      flex: 1; min-height: 0;
+      display: flex; flex-direction: column;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px; overflow: hidden;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3);
+    }
+    .panel-title-bar {
+      background: #001E60; color: #fff;
+      font-family: Arial, sans-serif; font-size: 9.5pt; text-align: center;
+      padding: 3px 8px; flex-shrink: 0;
+    }
+    .chart-wrap { flex: 1; min-height: 0; padding: 6px; }
+
+    /* table row at bottom */
+    .tables-row { display: flex; gap: 6px; height: 238px; flex-shrink: 0; }
+
+    .tbl-panel {
+      display: flex; flex-direction: column; min-width: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px; overflow: hidden;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3);
+    }
+    .tbl-panel.monthly { flex: 0 0 38%; }
+    .tbl-panel.detail  { flex: 1; }
+    .tbl-wrap { overflow: auto; flex: 1; min-height: 0; }
+
+    table.data-tbl {
+      width: 100%; border-collapse: collapse; font-size: 10px; font-family: Segoe UI, Arial, sans-serif;
+    }
+    table.data-tbl th {
+      background: #001E60; color: #fff; padding: 4px 6px;
+      text-align: left; font-size: 9px; white-space: nowrap;
+      position: sticky; top: 0; z-index: 1;
+    }
+    table.data-tbl td {
+      padding: 3px 6px; color: var(--text); border-bottom: 1px solid rgba(139,175,214,0.1);
+      white-space: nowrap;
+    }
+    table.data-tbl tr:hover td { background: rgba(139,175,214,0.08); }
+    .badge-pass { color: #0f6d39; font-weight: 700; }
+    .badge-fail { color: #d93025; font-weight: 700; }
+
+    /* ── Right column ── */
+    .right-col {
+      width: 252px; flex-shrink: 0;
+      display: flex; flex-direction: column; gap: 6px;
+    }
+
+    .kpi-panel {
+      display: flex; flex-direction: column; min-height: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px; overflow: hidden;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3);
+    }
+    .kpi-panel-body { padding: 10px; overflow-y: auto; flex: 1; min-height: 0; }
+
+    /* KPI card dark theme */
+    .kpi-panel-body .card {
+      font-family: Segoe UI, Arial, sans-serif; background: transparent; border: none; padding: 0;
+    }
+    .kpi-panel-body .title {
+      font-size: 13px; font-weight: 700; color: #f1f5fb;
+      display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;
+    }
+    .kpi-panel-body .status-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-left: 6px; }
+    .kpi-panel-body .value { font-size: 26px; font-weight: 700; color: #f1f5fb; margin-bottom: 6px; }
+    .kpi-panel-body .bar-bg { width: 100%; height: 7px; border-radius: 5px; background: rgba(255,255,255,0.1); margin-bottom: 6px; overflow: hidden; }
+    .kpi-panel-body .bar-fill { height: 100%; }
+    .kpi-panel-body .subtitle { font-size: 11px; color: #b4c0d0; margin-bottom: 8px; }
+    .kpi-panel-body .formula { background: rgba(255,255,255,0.05); padding: 7px; border-radius: 6px; font-size: 11px; border: 1px solid rgba(139,175,214,0.18); color: #b4c0d0; line-height: 1.5; }
+    .kpi-panel-body .formula strong { color: #f1f5fb; }
+
+    /* KPI HTML (evaluation detail) dark theme */
+    .kpi-panel-body .wrap { font-family: Segoe UI, Arial, sans-serif; background: transparent; border: none; padding: 0; }
+    .kpi-panel-body .wrap .title { font-size: 13px; font-weight: 700; color: #f1f5fb; margin-bottom: 8px; }
+    .kpi-panel-body .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+    .kpi-panel-body .chip { padding: 3px 8px; font-size: 11px; font-weight: 600; border-radius: 14px; background: rgba(255,255,255,0.08); border: 1px solid rgba(139,175,214,0.2); white-space: nowrap; color: #f1f5fb; }
+    .kpi-panel-body .statuschip { color: #fff; border: none; }
+    .kpi-panel-body .narr { font-size: 11px; line-height: 1.5; color: #b4c0d0; }
+    .kpi-panel-body .narr p { margin: 0 0 6px; }
+    .kpi-panel-body .narr strong { color: #f1f5fb; }
+
+    /* Pivot summary table */
+    .pivot-panel { flex: 0 0 auto; }
+    table.pivot-tbl { width: 100%; border-collapse: collapse; font-size: 10px; }
+    table.pivot-tbl th { background: #001E60; color: #fff; padding: 4px 6px; font-size: 9px; text-align: left; }
+    table.pivot-tbl td { padding: 3px 6px; color: var(--text); border-bottom: 1px solid rgba(139,175,214,0.1); }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="tb-mark" href="overview.html" title="Home">WO</a>
+  <div class="tb-title">Wastewater Operations KPIs</div>
+  <div class="tb-refresh">
+    <div class="tb-refresh-label">Last Update</div>
+    <div class="tb-refresh-val" id="last-update">-</div>
+  </div>
+</div>
+
+<div class="subtabs">
+  <a class="subtab-ghost subtab" href="overview.html">Overview</a>
+  <button class="subtab active">SSO Resolution Time</button>
+  <a class="subtab-ghost subtab" href="sewer-assessment.html">Sewer Assessment</a>
+  <a class="subtab-ghost subtab" href="leak-repair.html">Leak Repair Perf.</a>
+</div>
+
+<section class="page-intro">
+  <div>
+    <div class="page-kicker">KPI 1</div>
+    <h1 class="page-heading">SSO Resolution Time</h1>
+    <p class="page-statement">Resolve 95% of public SSOs within 48 hours of notification to reduce environmental and health impacts.</p>
+  </div>
+  <div class="fy-control">
+    <div class="fy-label">Fiscal Year (Apr-Mar)</div>
+    <select id="fy-select" multiple size="1"></select>
+  </div>
+</section>
+
+<div class="page-body">
+
+  <!-- ── Left sidebar ── -->
+  <div class="sidebar">
+
+    <div class="slicer-panel">
+      <div class="slicer-panel-title">SR Call In Day Range</div>
+      <div class="slicer-date">
+        <input type="date" id="dt-start" value="2025-07-01">
+        <div class="slicer-date-sep">to</div>
+        <input type="date" id="dt-end" value="2026-04-30">
+      </div>
+    </div>
+
+    <div class="slicer-panel">
+      <div class="slicer-panel-title">SSO Reviewed Status</div>
+      <div class="cb-list" id="cb-reviewed"></div>
+    </div>
+
+    <div class="row-slicers">
+      <div class="slicer-panel">
+        <div class="slicer-panel-title">SSO Type</div>
+        <div class="cb-list" id="cb-type"></div>
+      </div>
+      <div class="slicer-panel">
+        <div class="slicer-panel-title">SSO With SR</div>
+        <div class="cb-list" id="cb-withsr"></div>
+      </div>
+    </div>
+
+    <div class="slicer-panel" style="flex:0 0 auto">
+      <div class="slicer-panel-title">SSO Cause</div>
+      <div class="cb-list tall" id="cb-cause"></div>
+    </div>
+
+    <div class="calc-note">
+      <div class="calc-note-title">Calculation Note</div>
+      <div class="calc-rule"><span>Hours:</span> SSOEndDateTime minus response start, floored at 0.</div>
+      <div class="calc-rule"><span>Start:</span> SRInitDateTime when valid; otherwise SSOStartDateTime or IncidentDatetime.</div>
+      <div class="calc-rule"><span>End:</span> always SSOEndDateTime.</div>
+      <p><strong>Response Hours</strong> = (SSOEndDateTime − StartForResponse) × 24, minimum 0.</p>
+      <p><strong>StartForResponse</strong> priority: if SR exists → use SRInitDateTime (unless SRInitDateTime &gt; SSOEndDateTime, then fall back to SSOStartDateTime or IncidentDatetime); if no SR → use SSOStartDateTime or IncidentDatetime.</p>
+      <p><strong>SSOEndDateTime</strong> is always used as the end time.</p>
+    </div>
+
+  </div>
+
+  <!-- ── Main column ── -->
+  <div class="main-col">
+
+    <div class="chart-panel">
+      <div class="panel-title-bar">Monthly SSO KPI - % Resolved Within 48 Hours</div>
+      <div class="chart-wrap"><canvas id="sso-chart"></canvas></div>
+    </div>
+
+    <div class="tables-row">
+      <div class="tbl-panel monthly">
+        <div class="panel-title-bar">Monthly SSO Count</div>
+        <div class="tbl-wrap"><table class="data-tbl" id="monthly-tbl"></table></div>
+      </div>
+      <div class="tbl-panel detail">
+        <div class="panel-title-bar">SSO Perf. Metric Table <span id="detail-count" style="font-weight:400;font-size:8pt"></span></div>
+        <div class="tbl-wrap"><table class="data-tbl" id="detail-tbl"></table></div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── Right column ── -->
+  <div class="right-col">
+
+    <div class="kpi-panel" style="flex:0 0 auto">
+      <div class="panel-title-bar">Performance</div>
+      <div class="kpi-panel-body" id="kpi-card"></div>
+    </div>
+
+    <div class="kpi-panel" style="flex:1;min-height:0">
+      <div class="panel-title-bar">KPI Evaluation Detail</div>
+      <div class="kpi-panel-body" id="kpi-html"></div>
+    </div>
+
+    <div class="kpi-panel pivot-panel">
+      <div class="panel-title-bar">SSO Response Time Summary</div>
+      <div class="kpi-panel-body" style="padding:6px">
+        <table class="pivot-tbl" id="pivot-tbl"></table>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+function parseLocalDate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function getFiscalYear(dt) {
+  return dt.getMonth() >= 3 ? dt.getFullYear() + 1 : dt.getFullYear();
+}
+
+function monthKey(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function fmtDate(s) {
+  if (!s) return '';
+  return new Date(s).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+}
+
+function fmtHours(h) {
+  if (h === null || h === undefined) return '';
+  return Number(h).toFixed(1);
+}
+
+function fmtPct(v, dec = 1) {
+  if (v === null || v === undefined) return '';
+  return (v * 100).toFixed(dec) + '%';
+}
+
+function buildMonthSpine(startDt, endDt) {
+  const months = [];
+  const d = new Date(startDt.getFullYear(), startDt.getMonth(), 1);
+  const last = new Date(endDt.getFullYear(), endDt.getMonth(), 1);
+  while (d <= last) { months.push(new Date(d)); d.setMonth(d.getMonth() + 1); }
+  return months;
+}
+
+function fmtMonthYear(dt) {
+  return dt.toLocaleDateString('en-US', { month: 'long', year: 'numeric' }).replace(' ', '-');
+}
+
+// ── Slicer state ─────────────────────────────────────────────────────────────
+
+const state = {
+  startDt: parseLocalDate('2025-07-01'),
+  endDt:   parseLocalDate('2026-04-30'),
+  reviewed: new Set(['Reviewed']),
+  type:     new Set(['Public']),
+  withSR:   null,   // null = all
+  cause:    null,   // null = all
+  fy:       null,   // null = all
+};
+
+// ── Derived fields on each row (pre-computed at startup) ─────────────────────
+
+DATA_SSO.rows.forEach(r => {
+  r._reviewStatus = r["SSO Review Status"] || 'Not Yet Reviewed';
+  r._withSR       = r["SSO Associated with SR"] || 'No';
+  r._fy           = r.IncidentDatetime ? getFiscalYear(new Date(r.IncidentDatetime)) : null;
+  r._incidentDt   = r.IncidentDatetime ? new Date(r.IncidentDatetime) : null;
+  r._monthKey     = r._incidentDt ? monthKey(r._incidentDt) : null;
+});
+
+// ── Filter rows ───────────────────────────────────────────────────────────────
+
+function filterRows() {
+  const endEx = new Date(state.endDt); endEx.setDate(endEx.getDate() + 1);
+  return DATA_SSO.rows.filter(r => {
+    if (!r._incidentDt) return false;
+    if (r._incidentDt < state.startDt || r._incidentDt >= endEx) return false;
+    if (state.reviewed && !state.reviewed.has(r._reviewStatus)) return false;
+    if (state.type && !state.type.has(r.SSOProb)) return false;
+    if (state.withSR && !state.withSR.has(r._withSR)) return false;
+    if (state.cause && !state.cause.has(r.SSO_Cause)) return false;
+    if (state.fy && !state.fy.has(r._fy)) return false;
+    return true;
+  });
+}
+
+// ── KPI computation ───────────────────────────────────────────────────────────
+
+function computeKPI(rows) {
+  const resolved = rows.filter(r => r.ResponseHours !== null && r.ResponseHours !== undefined);
+  const total    = resolved.length;
+  const within48 = resolved.filter(r => r.Within48 === 1).length;
+  const over48   = total - within48;
+  const pct      = total > 0 ? within48 / total : 0;
+  return { total, within48, over48, pct };
+}
+
+// ── KPI renderers ─────────────────────────────────────────────────────────────
+
+function renderCard(k) {
+  const color  = k.pct >= 0.95 ? '#0f6d39' : '#d93025';
+  const pctTxt = fmtPct(k.pct);
+  const barW   = Math.min(100, k.pct * 100).toFixed(1);
+  return `<div class="card">
+    <div class="title"><div>Average SSO 48-Hour Resolution</div><div class="status-dot" style="background:${color}"></div></div>
+    <div class="value">${pctTxt}</div>
+    <div class="bar-bg"><div class="bar-fill" style="background:${color};width:${barW}%"></div></div>
+    <div class="subtitle">Goal: 95% resolved within 48 hours</div>
+    <div class="formula">
+      ${k.within48.toLocaleString()} within 48 hrs / ${k.total.toLocaleString()} total SSOs = ${pctTxt}
+    </div>
+  </div>`;
+}
+
+function renderKpiHTML(k) {
+  const color      = k.pct >= 0.95 ? '#0f6d39' : '#b91c1c';
+  const statusText = k.pct >= 0.95 ? 'above' : 'below';
+  const pctTxt     = fmtPct(k.pct);
+  const varTxt     = fmtPct(k.pct - 0.95);
+  return `<div class="wrap">
+    <div class="title">SSO Response KPI - 48-Hour Compliance</div>
+    <div class="chips">
+      <div class="chip">Total SSOs: ${k.total.toLocaleString()}</div>
+      <div class="chip">&lt; 48 hrs: ${k.within48.toLocaleString()}</div>
+      <div class="chip">&gt; 48 hrs: ${k.over48.toLocaleString()}</div>
+      <div class="chip">Performance: ${pctTxt}</div>
+      <div class="chip">Target: 95%</div>
+      <div class="chip statuschip" style="background:${color}">${varTxt}</div>
+    </div>
+    <div class="narr">
+      <p>Year-to-date, <strong>${k.within48.toLocaleString()}</strong> out of
+      <strong>${k.total.toLocaleString()}</strong> SSOs were resolved within 48 hours
+      (<strong>${pctTxt}</strong>).</p>
+      <p>This places performance <strong style="color:${color}">${statusText}</strong>
+      the 95% requirement by <strong>${varTxt}</strong>.</p>
+      <p>Only <strong>${k.over48.toLocaleString()}</strong> cases exceeded the 48-hour limit.</p>
+    </div>
+  </div>`;
+}
+
+// ── Monthly table ─────────────────────────────────────────────────────────────
+
+function buildMonthlyTable(rows) {
+  const byMonth = {};
+  rows.forEach(r => {
+    if (!r._monthKey) return;
+    if (!byMonth[r._monthKey]) byMonth[r._monthKey] = { month: r._incidentDt, total: 0, w48: 0, o48: 0, hours: [] };
+    const m = byMonth[r._monthKey];
+    m.total++;
+    if (r.ResponseHours !== null) {
+      m.hours.push(r.ResponseHours);
+      r.Within48 === 1 ? m.w48++ : m.o48++;
+    }
+  });
+  const sorted = Object.entries(byMonth).sort((a, b) => b[0].localeCompare(a[0]));
+  let html = `<thead><tr>
+    <th>Month-Year</th><th>SSO Cnt</th><th>&lt; 48 Hrs</th><th>&gt; 48 Hrs</th><th>Avg Hrs</th>
+  </tr></thead><tbody>`;
+  for (const [, m] of sorted) {
+    const avg = m.hours.length ? (m.hours.reduce((s, v) => s + v, 0) / m.hours.length).toFixed(1) : '';
+    html += `<tr><td>${fmtMonthYear(m.month)}</td><td>${m.total}</td>
+      <td class="badge-pass">${m.w48}</td><td class="badge-fail">${m.o48}</td><td>${avg}</td></tr>`;
+  }
+  return html + '</tbody>';
+}
+
+// ── Detail table (first 200 rows) ─────────────────────────────────────────────
+
+const DETAIL_LIMIT = 200;
+
+function buildDetailTable(rows) {
+  const shown = rows.slice(0, DETAIL_LIMIT);
+  document.getElementById('detail-count').textContent =
+    rows.length > DETAIL_LIMIT ? ` (showing ${DETAIL_LIMIT} of ${rows.length.toLocaleString()})` :
+    ` (${rows.length.toLocaleString()})`;
+  let html = `<thead><tr>
+    <th>INCKEY</th><th>Cause</th><th>SR Nbr</th><th>SR Init</th>
+    <th>Inc. Init</th><th>SSO Start</th><th>SSO End</th><th>Resp Hrs</th><th>Status</th><th>Type</th>
+  </tr></thead><tbody>`;
+  for (const r of shown) {
+    const cls = r.Within48 === 1 ? 'badge-pass' : (r.ResponseHours !== null ? 'badge-fail' : '');
+    html += `<tr>
+      <td>${r.INCKEY ?? ''}</td>
+      <td>${r.SSO_Cause ?? ''}</td>
+      <td>${r.ServiceRqNbr ?? ''}</td>
+      <td>${fmtDate(r.SRInitDateTime)}</td>
+      <td>${fmtDate(r.IncidentDatetime)}</td>
+      <td>${fmtDate(r.SSOStartDateTime)}</td>
+      <td>${fmtDate(r.SSOEndDateTime)}</td>
+      <td class="${cls}">${fmtHours(r.ResponseHours)}</td>
+      <td class="${cls}">${r.Within48Text ?? ''}</td>
+      <td>${r.SSOProb ?? ''}</td>
+    </tr>`;
+  }
+  return html + '</tbody>';
+}
+
+// ── Pivot summary ─────────────────────────────────────────────────────────────
+
+function buildPivot(rows) {
+  const resolved = rows.filter(r => r.ResponseHours !== null);
+  const groups = { 'Within 48 Hours': [], 'Over 48 Hours': [] };
+  resolved.forEach(r => {
+    const g = r.Within48 === 1 ? 'Within 48 Hours' : 'Over 48 Hours';
+    groups[g].push(r.ResponseHours);
+  });
+  let html = `<thead><tr><th>Response Time</th><th>Avg Resp. Hrs</th><th>SSO Count</th></tr></thead><tbody>`;
+  for (const [label, hrs] of Object.entries(groups)) {
+    const avg = hrs.length ? (hrs.reduce((s, v) => s + v, 0) / hrs.length).toFixed(1) : '-';
+    const cls = label === 'Within 48 Hours' ? 'badge-pass' : 'badge-fail';
+    html += `<tr><td class="${cls}">${label}</td><td>${avg}</td><td>${hrs.length.toLocaleString()}</td></tr>`;
+  }
+  return html + '</tbody>';
+}
+
+// ── Line chart ────────────────────────────────────────────────────────────────
+
+const dataLabelPlugin = {
+  id: 'kpiLabels',
+  afterDatasetDraw(chart, args) {
+    const { ctx } = chart;
+    const ds   = chart.data.datasets[args.index];
+    const meta = chart.getDatasetMeta(args.index);
+    ctx.save();
+    ctx.font = '10px Arial'; ctx.fillStyle = ds.borderColor;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    meta.data.forEach((pt, i) => {
+      const v = ds.data[i];
+      if (v === null || v === undefined) return;
+      ctx.fillText(fmtPct(v, 1), pt.x, pt.y + 4);
+    });
+    ctx.restore();
+  }
+};
+
+let ssoChart = null;
+
+function buildChart(rows) {
+  const spine = buildMonthSpine(state.startDt, state.endDt);
+
+  // aggregate by month
+  const byM = {};
+  rows.forEach(r => {
+    if (!r._monthKey || r.ResponseHours === null) return;
+    if (!byM[r._monthKey]) byM[r._monthKey] = { w: 0, t: 0 };
+    byM[r._monthKey].t++;
+    if (r.Within48 === 1) byM[r._monthKey].w++;
+  });
+
+  const labels = spine.map(m => m.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+  const values = spine.map(m => {
+    const d = byM[monthKey(m)];
+    return d && d.t > 0 ? d.w / d.t : null;
+  });
+
+  const cfg = {
+    type: 'line',
+    plugins: [dataLabelPlugin],
+    data: {
+      labels,
+      datasets: [{
+        label: '% Resolved Within 48 Hrs',
+        data: values,
+        borderColor: '#118DFF', backgroundColor: 'transparent',
+        pointBackgroundColor: '#118DFF', pointRadius: 4,
+        tension: 0, spanGaps: false,
+      }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      scales: {
+        y: {
+          min: 0, max: 1.01,
+          title: { display: true, text: '% of Service Requests Resolved Within 48 Hrs', color: '#b4c0d0', font: { size: 10 } },
+          ticks: { callback: v => fmtPct(v), color: '#b4c0d0', font: { size: 10 } },
+          grid: { color: 'rgba(139,175,214,0.12)' },
+        },
+        x: {
+          title: { display: true, text: 'Month Year', color: '#b4c0d0', font: { size: 10 } },
+          ticks: { color: '#b4c0d0', font: { size: 10 } },
+          grid: { color: 'rgba(139,175,214,0.12)' },
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ` ${fmtPct(ctx.parsed.y, 1)}` } }
+      }
+    }
+  };
+
+  if (ssoChart) ssoChart.destroy();
+  ssoChart = new Chart(document.getElementById('sso-chart'), cfg);
+}
+
+// ── Render all ────────────────────────────────────────────────────────────────
+
+function renderAll() {
+  const rows = filterRows();
+  const kpi  = computeKPI(rows);
+
+  document.getElementById('kpi-card').innerHTML  = renderCard(kpi);
+  document.getElementById('kpi-html').innerHTML  = renderKpiHTML(kpi);
+  document.getElementById('monthly-tbl').innerHTML = buildMonthlyTable(rows);
+  document.getElementById('detail-tbl').innerHTML  = buildDetailTable(rows);
+  document.getElementById('pivot-tbl').innerHTML   = buildPivot(rows);
+  buildChart(rows);
+}
+
+// ── Slicer population ─────────────────────────────────────────────────────────
+
+function buildCheckboxes(containerId, values, defaultSelected, stateKey, isSet = true) {
+  const el = document.getElementById(containerId);
+  const sorted = [...values].sort();
+  sorted.forEach(v => {
+    const id = `cb-${containerId}-${v}`;
+    const checked = defaultSelected === null || defaultSelected.has(v) ? 'checked' : '';
+    el.insertAdjacentHTML('beforeend',
+      `<label class="cb-item"><input type="checkbox" id="${id}" value="${v}" ${checked}>
+       <label for="${id}">${v ?? '(blank)'}</label></label>`);
+  });
+  el.addEventListener('change', () => {
+    const checked = [...el.querySelectorAll('input:checked')].map(i => i.value);
+    state[stateKey] = checked.length === sorted.length ? null : new Set(checked);
+    renderAll();
+  });
+}
+
+function populateSlicers() {
+  const reviewVals = new Set(), typeVals = new Set(), withSRVals = new Set(), causeVals = new Set(), fyVals = new Set();
+  DATA_SSO.rows.forEach(r => {
+    reviewVals.add(r._reviewStatus);
+    if (r.SSOProb) typeVals.add(r.SSOProb);
+    withSRVals.add(r._withSR);
+    if (r.SSO_Cause) causeVals.add(r.SSO_Cause);
+    if (r._fy) fyVals.add(r._fy);
+  });
+
+  buildCheckboxes('cb-reviewed', reviewVals, state.reviewed, 'reviewed');
+  buildCheckboxes('cb-type',     typeVals,   state.type,     'type');
+  buildCheckboxes('cb-withsr',   withSRVals, null,           'withSR');
+  buildCheckboxes('cb-cause',    causeVals,  null,           'cause');
+
+  syncFiscalYearOptions();
+  document.getElementById('fy-select').addEventListener('change', () => {
+    const fyEl = document.getElementById('fy-select');
+    const visibleYears = [...fyEl.options].map(o => Number(o.value));
+    const sel = [...fyEl.selectedOptions].map(o => Number(o.value));
+    state.fy = sel.length === visibleYears.length ? null : new Set(sel);
+    renderAll();
+  });
+}
+
+function fiscalYearsForDateRange() {
+  const endEx = new Date(state.endDt); endEx.setDate(endEx.getDate() + 1);
+  const years = new Set();
+  DATA_SSO.rows.forEach(r => {
+    if (!r._incidentDt) return;
+    if (r._incidentDt >= state.startDt && r._incidentDt < endEx && r._fy) years.add(r._fy);
+  });
+  return [...years].sort();
+}
+
+function syncFiscalYearOptions() {
+  const fyEl = document.getElementById('fy-select');
+  const years = fiscalYearsForDateRange();
+  const previous = state.fy ? new Set([...state.fy]) : null;
+  fyEl.innerHTML = '';
+  years.forEach(y => {
+    const opt = document.createElement('option');
+    opt.value = y;
+    opt.textContent = `FY ${y}`;
+    opt.selected = !previous || previous.has(y);
+    fyEl.appendChild(opt);
+  });
+  fyEl.size = 1;
+  const selected = [...fyEl.selectedOptions].map(o => Number(o.value));
+  state.fy = selected.length === years.length ? null : new Set(selected);
+}
+
+// ── Last Update (Min IncidentDatetime) ───────────────────────────────────────
+
+function computeLastUpdate() {
+  let minDt = null;
+  DATA_SSO.rows.forEach(r => {
+    if (!r.IncidentDatetime) return;
+    const dt = new Date(r.IncidentDatetime);
+    if (!minDt || dt < minDt) minDt = dt;
+  });
+  return minDt ? minDt.toLocaleDateString('en-US') : '-';
+}
+
+// ── Wire date slicer ──────────────────────────────────────────────────────────
+
+document.getElementById('dt-start').addEventListener('change', e => {
+  state.startDt = parseLocalDate(e.target.value); syncFiscalYearOptions(); renderAll();
+});
+document.getElementById('dt-end').addEventListener('change', e => {
+  state.endDt = parseLocalDate(e.target.value); syncFiscalYearOptions(); renderAll();
+});
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+
+document.getElementById('last-update').textContent = computeLastUpdate();
+populateSlicers();
+renderAll();
+</script>
+</body>
+</html>

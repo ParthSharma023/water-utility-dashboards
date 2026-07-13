@@ -1,0 +1,515 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Defect Causes 4/5 - MH Remediation Estimation</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .dc-page { padding: 8px 14px 20px; min-width: 1280px; display: flex; flex-direction: column; }
+
+    /* ── Panel card ──────────────────────────────────────────────── */
+    .chart-panel {
+      background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+    }
+    .panel-title-bar {
+      background: #001E60;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      padding: 6px 8px;
+      border-radius: 7px 7px 0 0;
+      letter-spacing: 0.01em;
+      min-height: 30px;
+      line-height: 18px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    /* ── Body layout: sidebar + chart ───────────────────────────── */
+    .dc-body {
+      display: grid;
+      grid-template-columns: 194px 1fr;
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+    }
+    .dc-body > * { min-width: 0; min-height: 0; }
+
+    /* Left sidebar */
+    .dc-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      height: 100%;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* Slicer list panels */
+    .slicer-scroll {
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0;
+      padding: 4px 0;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .slicer-scroll::-webkit-scrollbar { width: 4px; }
+    .slicer-scroll::-webkit-scrollbar-thumb { background: rgba(139,175,214,0.3); border-radius: 99px; }
+
+    .slicer-item {
+      display: flex; align-items: center; gap: 7px;
+      padding: 4px 10px;
+      font-size: 11px; color: var(--muted);
+      cursor: pointer; border-radius: 4px; margin: 1px 4px;
+    }
+    .slicer-item:hover { background: rgba(40,77,124,0.3); color: var(--text); }
+    .slicer-item.selected { background: rgba(28,110,140,0.45); color: #d0eaf7; }
+    .slicer-item input[type=checkbox] {
+      accent-color: #1C6E8C;
+      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+    }
+
+    /* Select-all row */
+    .slicer-all {
+      display: flex; align-items: center; gap: 7px;
+      padding: 4px 10px 5px;
+      font-size: 11px; font-weight: 600; color: var(--muted);
+      border-bottom: 1px solid rgba(113,144,186,0.15);
+      margin-bottom: 2px;
+      cursor: pointer;
+    }
+    .slicer-all:hover { color: var(--text); }
+    .slicer-all input[type=checkbox] {
+      accent-color: #1C6E8C;
+      width: 13px; height: 13px; flex-shrink: 0; cursor: pointer;
+    }
+
+    /* ── Chart panel ─────────────────────────────────────────────── */
+    .dc-chart-panel {
+      display: flex;
+      flex-direction: column;
+      min-width: 0;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .chart-scroll-outer {
+      overflow-x: auto; overflow-y: hidden; width: 100%; flex: 1 1 0; min-height: 0; height: 100%;
+      scrollbar-width: thin; scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .chart-scroll-outer::-webkit-scrollbar { height: 6px; }
+    .chart-scroll-outer::-webkit-scrollbar-track { background: transparent; }
+    .chart-scroll-outer::-webkit-scrollbar-thumb { background: rgba(139,175,214,0.3); border-radius: 99px; }
+    .chart-scroll-inner { min-width: 100%; position: relative; height: 100%; min-height: 0; }
+    #canvas-defects { display: block; width: 100% !important; height: 100% !important; }
+
+    /* Result count */
+    .result-count { font-size: 10px; color: var(--muted); padding: 3px 8px; flex-shrink: 0; }
+
+    /* Subtab ghost */
+    .subtab-ghost {
+      display: inline-block; padding: 10px 14px;
+      font-size: 12px; color: rgba(180,192,208,0.45); cursor: default;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">MH Remediation Estimation</h1>
+      <p style="margin:3px 0 0;font-size:14px;">Manhole Condition Assessment</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ──────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">No-Action Report</a>
+  <a class="subtab-ghost" href="assessment-grade.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Assessment Grade</a>
+  <button class="subtab active">Defect Causes 4/5</button>
+  <a class="subtab-ghost" href="decision-matrix.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Decision Matrix</a>
+</div>
+
+<!-- ── Page ──────────────────────────────────────────────────────────────── -->
+<div class="dc-page">
+  <div class="dc-body">
+
+    <!-- ══ LEFT SIDEBAR: two slicers ══ -->
+    <div class="dc-sidebar">
+
+      <!-- Manhole Components slicer -->
+      <div class="chart-panel" style="flex:0 0 auto; display:flex; flex-direction:column; max-height:55%;">
+        <div class="panel-title-bar">Manhole Components</div>
+        <div class="slicer-all" id="comp-all-row" onclick="toggleCompAll()">
+          <input type="checkbox" id="comp-all-cb" checked />
+          <span>Select All</span>
+        </div>
+        <div class="slicer-scroll" id="comp-list"></div>
+      </div>
+
+      <!-- Defect Causes slicer (self-filter) -->
+      <div class="chart-panel" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div class="panel-title-bar">Defect Causes QR 4/5</div>
+        <div class="slicer-all" id="defect-all-row" onclick="toggleDefectAll()">
+          <input type="checkbox" id="defect-all-cb" checked />
+          <span>Select All</span>
+        </div>
+        <div class="slicer-scroll" id="defect-list"></div>
+      </div>
+
+    </div>
+
+    <!-- ══ MAIN CHART ══ -->
+    <div class="chart-panel dc-chart-panel">
+      <div class="panel-title-bar">Defects Cause QR 4/5</div>
+      <div class="result-count" id="result-count"></div>
+      <div class="chart-scroll-outer" style="padding:0 6px 8px;">
+        <div id="chart-inner" class="chart-scroll-inner">
+          <canvas id="canvas-defects"></canvas>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const GRID = 'rgba(139,175,214,0.12)';
+const TICK = 'rgba(180,192,208,0.85)';
+
+// Categorical palette (40 colors, cycles across the defect bars)
+const THEME_COLORS = [
+  '#118DFF','#12239E','#E66C37','#6B007B','#E044A7','#744EC2','#D9B300','#D64550',
+  '#197278','#1AAB40','#15C6F4','#4092FF','#FFA058','#BE5DC9','#F472D0','#B5A1FF',
+  '#C4A200','#FF8080','#00DBBC','#5BD667','#0091D5','#4668C5','#FF6300','#99008A',
+  '#EC008C','#533285','#99700A','#800000','#008080','#808000','#000080','#808080',
+  '#4472C4','#ED7D31','#A9D18E','#FF0000','#FFC000','#00B0F0','#7030A0','#00B050',
+];
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let activeComps   = new Set();   // empty = all selected
+let activeDefects = new Set();   // empty = all selected
+let compsNoneSelected = false;
+let defectsNoneSelected = false;
+let _allComps   = [];
+let _availDefects = [];   // self-filtered list
+let charts = {};
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function escH(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Filter logic ──────────────────────────────────────────────────────────────
+function getCompFilteredRows() {
+  const rows = window.DATA_DC45.rows;
+  if (compsNoneSelected) return [];
+  if (activeComps.size === 0) return rows;
+  return rows.filter(r => activeComps.has(r.ComponentDescription));
+}
+
+function getFullyFilteredRows() {
+  const compRows = getCompFilteredRows();
+  if (defectsNoneSelected) return [];
+  if (activeDefects.size === 0) return compRows;
+  return compRows.filter(r => activeDefects.has(r.Defect));
+}
+
+// ── Chart plugins ─────────────────────────────────────────────────────────────
+const dataLabelPlugin = {
+  id: 'barDataLabels',
+  afterDatasetsDraw(chart) {
+    const opts = chart.options.plugins.barDataLabels;
+    if (!opts || !opts.show) return;
+    const { ctx } = chart;
+    const n = chart.data.labels.length;
+    const skip = 1;
+    chart.data.datasets.forEach((ds, di) => {
+      const meta = chart.getDatasetMeta(di);
+      for (let i = 0; i < n; i++) {
+        if (i % skip !== 0) continue;
+        const value = ds.data[i]; if (!value) continue;
+        const bar = meta.data[i]; if (!bar) continue;
+        const { x, y } = bar.getProps(['x', 'y'], true);
+        _drawLabel(ctx, value.toLocaleString(), x, y);
+      }
+    });
+  }
+};
+
+function _drawLabel(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const w = ctx.measureText(text).width + 8, h = 14;
+  ctx.fillStyle = 'rgba(107,0,123,0.28)';
+  const rx = x - w/2, ry = y - h - 2;
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(rx, ry, w, h, 3); ctx.fill(); }
+  else ctx.fillRect(rx, ry, w, h);
+  ctx.fillStyle = 'rgba(235,220,240,0.96)';
+  ctx.fillText(text, x, y - 2);
+  ctx.restore();
+}
+
+Chart.register(dataLabelPlugin);
+Chart.defaults.color = TICK;
+Chart.defaults.font.family = "'Segoe UI', Arial, sans-serif";
+Chart.defaults.font.size = 11;
+
+// ── Chart render ──────────────────────────────────────────────────────────────
+function renderChart(rows) {
+  // Aggregate: count per Defect, sorted desc
+  const map = {};
+  const descMap = {};
+  rows.forEach(r => {
+    map[r.Defect] = (map[r.Defect] || 0) + 1;
+    if (!descMap[r.Defect]) descMap[r.Defect] = r.Description || r.Defect;
+  });
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  const labels = sorted.map(e => e[0]);
+  const vals   = sorted.map(e => e[1]);
+  const colors = labels.map((_, i) => THEME_COLORS[i % THEME_COLORS.length]);
+  const descriptions = labels.map(l => descMap[l] || l);
+
+  const PX_PER_BAR = 42;
+  const minW = Math.max(500, labels.length * PX_PER_BAR);
+  document.getElementById('chart-inner').style.width = minW + 'px';
+
+  document.getElementById('result-count').textContent =
+    `${rows.length.toLocaleString()} records - ${labels.length} defect types`;
+
+  if (charts.main) charts.main.destroy();
+  charts.main = new Chart(document.getElementById('canvas-defects'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        data: vals,
+        backgroundColor: colors,
+        borderRadius: 3,
+        label: 'Count',
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: { padding: { top: 22, bottom: 6, left: 4, right: 4 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: 'rgba(12,21,34,0.92)',
+          borderColor: 'rgba(139,175,214,0.3)', borderWidth: 1,
+          titleColor: '#f1f5fb', bodyColor: '#b4c0d0',
+          callbacks: {
+            title: (items) => {
+              const idx = items[0].dataIndex;
+              const desc = descriptions[idx];
+              // Show full description if different from the label
+              return desc !== labels[idx] ? `${labels[idx]}: ${desc}` : desc;
+            },
+            label: (item) => ` Count: ${item.raw.toLocaleString()}`,
+          },
+        },
+        barDataLabels: { show: true },
+      },
+      scales: {
+        x: {
+          grid: { color: GRID },
+          ticks: {
+            color: TICK,
+            font: { size: 9 },
+            maxRotation: 55,
+            minRotation: 45,
+            autoSkip: false,
+            callback(val) {
+              const lbl = this.getLabelForValue(val);
+              return lbl.length > 18 ? lbl.substring(0, 17) + '…' : lbl;
+            },
+          },
+        },
+        y: {
+          grid: { color: GRID },
+          ticks: { color: TICK, font: { size: 10 } },
+          title: { display: true, text: 'Count', color: TICK, font: { size: 10 } },
+          grace: '8%',
+        },
+      },
+    },
+  });
+}
+
+// ── Component slicer ──────────────────────────────────────────────────────────
+function buildCompSlicer() {
+  const container = document.getElementById('comp-list');
+  container.innerHTML = _allComps.map((comp, i) => {
+    const checked = !compsNoneSelected && (activeComps.size === 0 || activeComps.has(comp));
+    return `<label class="slicer-item${checked ? ' selected' : ''}">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleComp(${i}, this.checked)" />
+      ${escH(comp)}
+    </label>`;
+  }).join('');
+  updateCompAllCheckbox();
+}
+
+function toggleComp(idx, checked) {
+  const comp = _allComps[idx];
+  if (compsNoneSelected) {
+    compsNoneSelected = false;
+    activeComps.clear();
+  }
+  if (checked) {
+    if (activeComps.size === _allComps.length - 1) {
+      activeComps.clear(); // all selected = no filter
+    } else {
+      activeComps.add(comp);
+    }
+  } else {
+    if (activeComps.size === 0) {
+      // was all-selected; deselect all then re-add all except this one
+      _allComps.forEach(c => { if (c !== comp) activeComps.add(c); });
+    } else {
+      activeComps.delete(comp);
+    }
+  }
+  // Clear defect selection when component changes (self-filter will rebuild)
+  activeDefects.clear();
+  defectsNoneSelected = false;
+  renderAll();
+}
+
+function toggleCompAll() {
+  const allSelected = !compsNoneSelected && activeComps.size === 0;
+  activeComps.clear();
+  compsNoneSelected = allSelected;
+  activeDefects.clear();
+  defectsNoneSelected = false;
+  renderAll();
+}
+
+function updateCompAllCheckbox() {
+  const cb = document.getElementById('comp-all-cb');
+  if (compsNoneSelected) { cb.checked = false; cb.indeterminate = false; return; }
+  if (activeComps.size === 0) { cb.checked = true; cb.indeterminate = false; }
+  else if (activeComps.size === _allComps.length) { cb.checked = false; cb.indeterminate = false; }
+  else { cb.indeterminate = true; cb.checked = false; }
+}
+
+// ── Defect slicer (self-filter) ───────────────────────────────────────────────
+function buildDefectSlicer(compRows) {
+  // self-filter: only defects present in comp-filtered rows
+  const available = [...new Set(compRows.map(r => r.Defect))].sort();
+  _availDefects = available;
+
+  const container = document.getElementById('defect-list');
+  container.innerHTML = available.map((d, i) => {
+    const checked = !defectsNoneSelected && (activeDefects.size === 0 || activeDefects.has(d));
+    return `<label class="slicer-item${checked ? ' selected' : ''}">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleDefect(${i}, this.checked)" />
+      ${escH(d)}
+    </label>`;
+  }).join('');
+  updateDefectAllCheckbox();
+}
+
+function toggleDefect(idx, checked) {
+  const defect = _availDefects[idx];
+  if (defectsNoneSelected) {
+    defectsNoneSelected = false;
+    activeDefects.clear();
+  }
+  if (checked) {
+    if (activeDefects.size === _availDefects.length - 1) {
+      activeDefects.clear();
+    } else {
+      activeDefects.add(defect);
+    }
+  } else {
+    if (activeDefects.size === 0) {
+      _availDefects.forEach(d => { if (d !== defect) activeDefects.add(d); });
+    } else {
+      activeDefects.delete(defect);
+    }
+  }
+  renderAll();
+}
+
+function toggleDefectAll() {
+  const allSelected = !defectsNoneSelected && activeDefects.size === 0;
+  activeDefects.clear();
+  defectsNoneSelected = allSelected;
+  renderAll();
+}
+
+function updateDefectAllCheckbox() {
+  const cb = document.getElementById('defect-all-cb');
+  if (defectsNoneSelected) { cb.checked = false; cb.indeterminate = false; return; }
+  if (activeDefects.size === 0) { cb.checked = true; cb.indeterminate = false; }
+  else if (activeDefects.size === _availDefects.length) { cb.checked = false; cb.indeterminate = false; }
+  else { cb.indeterminate = true; cb.checked = false; }
+}
+
+// ── Main render ────────────────────────────────────────────────────────────────
+function renderAll() {
+  const compRows = getCompFilteredRows();
+  const fullRows = getFullyFilteredRows();
+  buildCompSlicer();
+  buildDefectSlicer(compRows);
+  renderChart(fullRows);
+}
+
+// ── Scroll enhancement ────────────────────────────────────────────────────────
+function enhanceScrolling() {
+  document.querySelectorAll('.chart-scroll-outer').forEach(el => {
+    el.addEventListener('wheel', e => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!delta) return;
+      e.preventDefault();
+      el.scrollLeft += delta * 2.8;
+    }, { passive: false });
+  });
+}
+
+// ── Make chart fill remaining viewport height ─────────────────────────────────
+function setChartHeight() {
+  const topbar  = document.querySelector('.topbar');
+  const subtabs = document.querySelector('.subtabs');
+  const page    = document.querySelector('.dc-page');
+  const avail   = window.innerHeight
+    - (topbar  ? topbar.offsetHeight  : 0)
+    - (subtabs ? subtabs.offsetHeight : 0)
+    - 32; // page padding
+  page.style.height = avail + 'px';
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  // Build static component list from all rows
+  _allComps = [...new Set(window.DATA_DC45.rows.map(r => r.ComponentDescription))]
+    .filter(Boolean).sort();
+  setChartHeight();
+  renderAll();
+  enhanceScrolling();
+}
+
+window.addEventListener('resize', () => { setChartHeight(); if (charts.main) charts.main.resize(); });
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

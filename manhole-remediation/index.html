@@ -1,0 +1,1084 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>No-Action Report - MH Remediation Estimation</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .na-page { padding: 4px; min-width: 960px; display: flex; flex-direction: column; min-height: 0; background: #fff; color: #111; }
+
+    /* ── Panel card ──────────────────────────────────────────────── */
+    .chart-panel {
+      background: #fff;
+      border: 1px solid #111;
+      border-radius: 3px;
+      box-shadow: none;
+      overflow: hidden;
+      min-height: 0;
+    }
+    .panel-title-bar {
+      background: #001E60; color: #fff; font-size: 11px; font-weight: 600;
+      text-align: center; padding: 2px 5px; border-radius: 2px 2px 0 0;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-height: 18px; line-height: 14px;
+    }
+
+    /* ── Body grid ───────────────────────────────────────────────── */
+    .na-body {
+      display: grid;
+      grid-template-columns: 148px minmax(0,340fr) minmax(0,250fr) minmax(0,210fr);
+      gap: 4px;
+      flex: 1;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .na-body > * { min-width: 0; min-height: 0; }
+
+    /* ── Left sidebar ────────────────────────────────────────────── */
+    .na-sidebar { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; }
+
+    /* Date slicer */
+    .date-row { display: grid; grid-template-columns: 26px minmax(0,1fr) 16px minmax(0,1fr); align-items: center; gap: 4px; padding: 4px 6px 5px; }
+    .slicer-label { font-size: 9px; color: #333; white-space: nowrap; }
+    .slicer-input {
+      height: 22px; padding: 0 3px; border-radius: 4px;
+      border: 1px solid #b8b8b8; background: #fff;
+      color: #111; font: inherit; font-size: 9px; flex: 1; min-width: 50px;
+    }
+    .slicer-input::-webkit-calendar-picker-indicator { opacity: 0.8; }
+    .clear-btn {
+      height: 22px; padding: 0 6px; border-radius: 4px;
+      border: 1px solid #b8b8b8; background: #fff;
+      color: #333; font: inherit; font-size: 10px; cursor: pointer;
+      grid-column: 1 / -1; justify-self: start;
+    }
+    .clear-btn:hover { background: #edf3fb; color: #111; }
+
+    /* KPI row (Source pivot + MH Count + Defect Types) */
+    .kpi-minirow { display: flex; gap: 4px; flex-shrink: 0; }
+    .kpi-minirow > * { flex: 1; min-width: 0; }
+
+    .kpi-wrap { padding: 5px 7px; text-align: center; }
+    .kpi-val { font-size: 22px; font-weight: 500; color: #111; line-height: 1.05; }
+    .kpi-sub { font-size: 9px; color: #333; margin-top: 1px; }
+
+    /* Shared slicer list */
+    .slicer-scroll {
+      overflow-y: auto; flex: 1; min-height: 0; padding: 2px 0;
+      scrollbar-width: thin; scrollbar-color: #8c8c8c transparent;
+    }
+    .slicer-scroll::-webkit-scrollbar { width: 4px; }
+    .slicer-scroll::-webkit-scrollbar-thumb { background: #8c8c8c; border-radius: 99px; }
+    .slicer-item {
+      display: flex; align-items: center; gap: 6px; padding: 2px 8px;
+      font-size: 9px; color: #333; cursor: pointer; border-radius: 1px; margin: 1px 3px;
+    }
+    .slicer-item:hover { background: #edf3fb; color: #111; }
+    .slicer-item.selected { background: transparent; color: #333; }
+    .slicer-item input[type=checkbox] { accent-color: #118DFF; width: 11px; height: 11px; flex-shrink: 0; cursor: pointer; }
+    .slicer-all {
+      display: flex; align-items: center; gap: 6px; padding: 3px 8px;
+      font-size: 9px; font-weight: 400; color: #333;
+      border-bottom: 1px solid #d0d0d0; margin-bottom: 2px; cursor: pointer;
+    }
+    .slicer-all input[type=checkbox] { accent-color: #118DFF; width: 11px; height: 11px; flex-shrink: 0; }
+
+    /* Source table */
+    .src-tbl { width: 100%; border-collapse: collapse; font-size: 10px; table-layout: fixed; }
+    .src-tbl th { background: #f1f4f8; color: #17365d; font-weight: 700; padding: 3px 5px; border-bottom: 1px solid #c5cbd3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .src-tbl td { padding: 3px 5px; border-bottom: 1px solid #d6dce3; color: #111; vertical-align: middle; }
+    .src-tbl tbody tr:nth-child(odd) { background: #fff; }
+    .src-tbl tbody tr:nth-child(even) { background: #e9edf2; }
+    /* data-bar cell */
+    .src-bar-cell { position: relative; min-width: 60px; }
+    .src-bar-bg { position: absolute; left: 0; top: 18%; height: 64%; border-radius: 0; background: #13b8c8; pointer-events: none; }
+    .src-bar-num { position: relative; z-index: 1; font-weight: 600; padding-left: 4px; }
+
+    /* Defect Types list */
+    .deftype-list { padding: 4px 8px; }
+    .deftype-row { display: flex; justify-content: space-between; align-items: center; padding: 2px 2px; font-size: 10px; border-radius: 3px; }
+    .deftype-row:hover { background: #edf3fb; }
+    .deftype-name { color: #111; }
+    .deftype-cnt { color: #111; font-weight: 400; }
+
+    /* ── Center-left col ─────────────────────────────────────────── */
+    .na-center-left { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; }
+
+    /* Estimate chart panel */
+    .est-chart-panel { flex-shrink: 0; position: relative; }
+
+    /* Remediation method multi-select dropdown */
+    .method-dropdown-wrap { position: relative; padding: 5px 8px; }
+    .method-dropdown-btn {
+      width: 100%; height: 28px; padding: 0 28px 0 10px; border-radius: 5px;
+      border: 1px solid #b8b8b8; background: #fff;
+      color: #333; font: inherit; font-size: 10px; cursor: pointer;
+      text-align: left; position: relative; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .method-dropdown-btn::after {
+      content: '▾'; position: absolute; right: 8px; top: 50%; transform: translateY(-50%);
+      color: #777; font-size: 11px; pointer-events: none;
+    }
+    .method-dropdown-btn.open { border-color: #118DFF; background: #f7fbff; }
+    .method-dropdown-list {
+      display: none; position: absolute; z-index: 100; left: 8px; right: 8px; top: calc(100% - 2px);
+      background: #fff; border: 1px solid #b8b8b8;
+      border-radius: 0 0 6px 6px; max-height: 220px; overflow-y: auto;
+      scrollbar-width: thin; scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .method-dropdown-list.open { display: block; }
+    .method-opt {
+      display: flex; align-items: center; gap: 7px; padding: 5px 10px;
+      font-size: 10px; color: #333; cursor: pointer;
+    }
+    .method-opt:hover { background: #edf3fb; color: #111; }
+    .method-opt.selected { color: #333; }
+    .method-opt input[type=checkbox] { accent-color: #118DFF; width: 11px; height: 11px; flex-shrink: 0; cursor: pointer; }
+    .method-opt-all { border-bottom: 1px solid #d0d0d0; font-weight: 600; }
+
+    /* ── Shared table ────────────────────────────────────────────── */
+    .na-tbl { width: 100%; border-collapse: collapse; font-size: 10px; }
+    #detail-table { min-width: 1040px; }
+    .na-tbl th {
+      background: #f1f4f8; color: #17365d;
+      font-weight: 700; font-size: 10px; padding: 4px 6px;
+      border-bottom: 1px solid #c5cbd3;
+      white-space: nowrap; position: sticky; top: 0; z-index: 1;
+    }
+    .na-tbl td { padding: 3px 6px; border-bottom: 1px solid #d6dce3; color: #17365d; white-space: nowrap; }
+    .na-tbl tbody tr:nth-child(odd)  { background: #fff; }
+    .na-tbl tbody tr:nth-child(even) { background: #e9edf2; }
+    .na-tbl tbody tr:hover { background: #dcecff; }
+    .na-tbl tfoot td {
+      background: #fff; color: #111;
+      font-weight: 700; font-size: 10px;
+      border-top: 1px solid #777;
+      position: sticky; bottom: 0; z-index: 1;
+    }
+
+    .tbl-panel { display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+    .tbl-scroll { overflow: auto; flex: 1 1 0; min-height: 0; scrollbar-width: thin; scrollbar-color: #8c8c8c transparent; }
+    .tbl-scroll::-webkit-scrollbar { width: 4px; }
+    .tbl-scroll::-webkit-scrollbar-thumb { background: #8c8c8c; border-radius: 99px; }
+
+    .detail-count { font-size: 9px; color: #333; padding: 2px 6px; flex-shrink: 0; }
+
+    /* External inspection link */
+    .insp-link { color: #118DFF; text-decoration: none; font-size: 10px; }
+    .insp-link:hover { text-decoration: underline; }
+
+    /* ── Right panels ────────────────────────────────────────────── */
+    .na-right { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; }
+
+    /* Gauge */
+    .gauge-wrap { padding: 6px 8px 8px; display: flex; flex-direction: column; align-items: center; }
+    .gauge-svg { display: block; }
+    .gauge-label { font-size: 11px; font-weight: 700; color: #f58220; margin-top: 2px; text-align: center; }
+    .gauge-sub { font-size: 9px; color: #003478; text-align: center; }
+    .remd-count-panel { position: relative; }
+    .remd-count-chart-wrap { flex: 1; padding: 6px 118px 8px 8px; min-height: 0; }
+    .progress-overlay {
+      position: absolute; right: 9px; top: 32px; width: 104px;
+      border: 1px solid rgba(108,143,186,0.36); border-radius: 6px;
+      background: rgba(18,30,48,0.96); box-shadow: 0 8px 20px rgba(0,0,0,0.24);
+      overflow: hidden; z-index: 2;
+    }
+    .progress-title {
+      background: #001E60; color: #fff; font-size: 8px; font-weight: 700;
+      line-height: 11px; text-align: center; padding: 2px 3px;
+    }
+    .progress-overlay .gauge-wrap { padding: 4px 5px 6px; }
+    .progress-overlay .gauge-label { font-size: 14px; color: #f58220; font-weight: 500; }
+    .progress-overlay .gauge-sub { width: 100%; display: flex; justify-content: space-between; color: #d8e8ff; font-size: 10px; font-weight: 700; }
+
+    /* Far-right column */
+    .na-far-right { display: flex; flex-direction: column; gap: 4px; min-height: 0; overflow: hidden; }
+
+    /* Footer textboxes */
+    .na-footer { margin-top: 2px; display: flex; gap: 8px; font-size: 10px; color: #333; }
+    .na-footer a { color: #118DFF; text-decoration: none; }
+    .na-footer a:hover { text-decoration: underline; }
+    .na-footer span { margin-left: auto; }
+
+    /* Subtab ghost */
+    .subtab-ghost {
+      display: inline-block; padding: 10px 14px;
+      font-size: 12px; color: rgba(180,192,208,0.45); cursor: default;
+    }
+
+    /* Chart scroll */
+    .tbl-bar-cell { position: relative; text-align: right; color: #111 !important; }
+    .tbl-bar-bg { position: absolute; left: 0; top: 15%; height: 70%; background: #13b8c8; pointer-events: none; }
+    .tbl-bar-num { position: relative; z-index: 1; padding-right: 2px; color: #111; }
+    .chart-scroll-x { overflow-x: auto; overflow-y: hidden; scrollbar-width: thin; scrollbar-color: #8c8c8c transparent; }
+    .chart-scroll-x::-webkit-scrollbar { height: 4px; }
+    .chart-scroll-x::-webkit-scrollbar-thumb { background: #8c8c8c; border-radius: 99px; }
+
+    /* Restore dashboard dark theme while keeping the No-Action layout fixes. */
+    .na-page { padding: 8px 14px 14px; min-width: 1280px; background: transparent; color: var(--text); }
+    .chart-panel {
+      background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+    }
+    .panel-title-bar {
+      background: #001E60; color: #fff; font-size: 11px; font-weight: 600;
+      padding: 5px 6px; border-radius: 7px 7px 0 0; min-height: 24px; line-height: 16px;
+    }
+    .na-body {
+      grid-template-columns: 203px minmax(0,462fr) minmax(0,337fr) minmax(0,262fr);
+      gap: 8px;
+    }
+    .na-sidebar, .na-center-left, .na-right, .na-far-right { gap: 6px; }
+    .slicer-label, .kpi-sub, .slicer-item, .slicer-all, .detail-count, .na-footer { color: var(--muted); }
+    .slicer-input {
+      border: 1px solid rgba(108,143,186,0.36); background: #102032;
+      color: var(--text); font-size: 10px;
+    }
+    .slicer-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.6; }
+    .clear-btn {
+      border: 1px solid rgba(108,143,186,0.3); background: rgba(16,32,50,0.7);
+      color: var(--muted);
+    }
+    .clear-btn:hover { background: rgba(40,77,124,0.3); color: var(--text); }
+    .kpi-minirow { gap: 5px; }
+    .kpi-val { font-size: 20px; font-weight: 800; color: var(--text); }
+    .slicer-scroll, .tbl-scroll, .chart-scroll-x { scrollbar-color: rgba(139,175,214,0.3) transparent; }
+    .slicer-scroll::-webkit-scrollbar-thumb,
+    .tbl-scroll::-webkit-scrollbar-thumb,
+    .chart-scroll-x::-webkit-scrollbar-thumb { background: rgba(139,175,214,0.3); }
+    .slicer-item { color: var(--muted); font-size: 10px; border-radius: 3px; }
+    .slicer-item:hover { background: rgba(40,77,124,0.3); color: var(--text); }
+    .slicer-item.selected { background: rgba(28,110,140,0.45); color: #d0eaf7; }
+    .slicer-item input[type=checkbox],
+    .slicer-all input[type=checkbox],
+    .method-opt input[type=checkbox] { accent-color: #1C6E8C; width: 12px; height: 12px; }
+    .slicer-all { color: var(--muted); border-bottom: 1px solid rgba(113,144,186,0.15); font-weight: 600; }
+    .src-tbl th, .na-tbl th {
+      background: rgba(28,36,62,0.96); color: rgba(222,232,244,0.84);
+      border-bottom: 1px solid rgba(113,144,186,0.2);
+    }
+    .src-tbl td, .na-tbl td { color: var(--text); border-bottom: 1px solid rgba(113,144,186,0.06); }
+    .src-tbl tbody tr:nth-child(odd), .na-tbl tbody tr:nth-child(odd) { background: rgba(21,35,52,0.88); }
+    .src-tbl tbody tr:nth-child(even), .na-tbl tbody tr:nth-child(even) { background: rgba(18,29,43,0.88); }
+    .na-tbl tbody tr:hover { background: rgba(40,77,124,0.4); }
+    .na-tbl tfoot td {
+      background: rgba(0,15,55,0.95); color: #fff;
+      border-top: 1px solid rgba(108,143,186,0.35);
+    }
+    .src-bar-bg, .tbl-bar-bg { background: rgba(17,141,255,0.45); }
+    .tbl-bar-cell { color: var(--text) !important; }
+    .tbl-bar-num { color: var(--text); }
+    .deftype-name { color: var(--muted); }
+    .deftype-cnt { color: var(--text); font-weight: 700; }
+    .deftype-row:hover { background: rgba(40,77,124,0.2); }
+    .method-dropdown-btn {
+      border: 1px solid rgba(108,143,186,0.36); background: rgba(16,32,50,0.85);
+      color: var(--text); font-size: 11px;
+    }
+    .method-dropdown-btn::after { color: var(--muted); }
+    .method-dropdown-btn.open { border-color: #1C6E8C; background: rgba(28,60,90,0.9); }
+    .method-dropdown-list {
+      background: rgba(18,30,48,0.98); border: 1px solid rgba(108,143,186,0.36);
+    }
+    .method-opt { color: var(--muted); font-size: 11px; }
+    .method-opt:hover { background: rgba(40,77,124,0.35); color: var(--text); }
+    .method-opt.selected { color: #d0eaf7; }
+    .method-opt-all { border-bottom: 1px solid rgba(113,144,186,0.15); }
+    .gauge-label { color: var(--text); }
+    .gauge-sub { color: var(--muted); }
+    .progress-overlay .gauge-label { color: #f58220; }
+    .progress-overlay .gauge-sub { color: #d8e8ff; }
+    canvas { display: block; width: 100% !important; height: 100% !important; }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">MH Remediation Estimation</h1>
+      <p style="margin:3px 0 0;font-size:14px;">Manhole Condition Assessment</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ──────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <button class="subtab active">No-Action Report</button>
+  <a class="subtab-ghost" href="assessment-grade.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Assessment Grade</a>
+  <a class="subtab-ghost" href="defect-causes-45.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Defect Causes 4/5</a>
+  <a class="subtab-ghost" href="decision-matrix.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Decision Matrix</a>
+</div>
+
+<!-- ── Page ──────────────────────────────────────────────────────────────── -->
+<div class="na-page" id="na-page">
+  <div class="na-body">
+
+    <!-- ══ LEFT SIDEBAR ══ -->
+    <div class="na-sidebar">
+
+      <!-- Date slicer -->
+      <div class="chart-panel" style="flex-shrink:0;">
+        <div class="panel-title-bar">Inspection Report Date</div>
+        <div class="date-row">
+          <span class="slicer-label">From</span>
+          <input type="date" id="date-from" class="slicer-input" />
+          <span class="slicer-label">To</span>
+          <input type="date" id="date-to" class="slicer-input" />
+          <button class="clear-btn" onclick="clearDates()">All</button>
+        </div>
+      </div>
+
+      <!-- Source table - full width with data bars -->
+      <div class="chart-panel" style="flex-shrink:0;">
+        <div class="panel-title-bar">Source</div>
+        <table class="src-tbl">
+          <thead><tr><th style="width:42%;">Source</th><th>MHI Count</th></tr></thead>
+          <tbody id="src-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- Defect Types + MH Count side by side -->
+      <div class="kpi-minirow" style="flex-shrink:0;">
+        <div class="chart-panel" style="flex:3;display:flex;flex-direction:column;">
+          <div class="panel-title-bar">Defect Types</div>
+          <div class="deftype-list" id="deftype-list"></div>
+        </div>
+        <div class="chart-panel" style="flex:2;">
+          <div class="panel-title-bar">MH Count</div>
+          <div class="kpi-wrap">
+            <div class="kpi-val" id="mh-count">-</div>
+            <div class="kpi-sub">manholes</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Manhole Components slicer -->
+      <div class="chart-panel" style="flex:0 0 105px;display:flex;flex-direction:column;">
+        <div class="panel-title-bar">Manhole Components</div>
+        <div class="slicer-all" onclick="toggleCompAll()">
+          <input type="checkbox" id="comp-all-cb" checked /><span>Select All</span>
+        </div>
+        <div class="slicer-scroll" id="comp-list"></div>
+      </div>
+
+      <!-- Defect Category chart -->
+      <div class="chart-panel" style="flex:0 0 125px;display:flex;flex-direction:column;">
+        <div class="panel-title-bar">Defect Category</div>
+        <div style="flex:1;padding:3px 5px 5px;min-height:0;">
+          <canvas id="canvas-defcat"></canvas>
+        </div>
+      </div>
+
+      <!-- Individual Defect Causes slicer -->
+      <div class="chart-panel" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+        <div class="panel-title-bar">Individual Defect Causes QR 4/5</div>
+        <div class="slicer-all" onclick="toggleDescAll()">
+          <input type="checkbox" id="desc-all-cb" checked /><span>Select All</span>
+        </div>
+        <div class="slicer-scroll" id="desc-list"></div>
+      </div>
+
+    </div>
+
+    <!-- ══ CENTER-LEFT ══ -->
+    <div class="na-center-left">
+
+      <!-- Estimate of Remediation Methods chart + method dropdown -->
+      <div class="chart-panel" style="flex:0 0 auto;">
+        <div class="panel-title-bar">Estimate of Remediation Methods</div>
+        <div class="method-dropdown-wrap">
+          <button class="method-dropdown-btn" id="method-btn" onclick="toggleMethodDropdown()">All Methods</button>
+          <div class="method-dropdown-list" id="method-list"></div>
+        </div>
+        <div class="chart-scroll-x" style="padding:0 6px 6px;">
+          <div id="est-inner" style="min-width:100%;position:relative;height:160px;">
+            <canvas id="canvas-est"></canvas>
+          </div>
+        </div>
+      </div>
+
+      <!-- Asset with Remediation Methods detail table -->
+      <div class="chart-panel tbl-panel" style="flex:1;min-height:0;">
+        <div class="panel-title-bar">Asset with Remediation Methods</div>
+        <div class="detail-count" id="detail-count"></div>
+        <div class="tbl-scroll">
+          <table class="na-tbl" id="detail-table">
+            <thead><tr>
+              <th>Manhole</th>
+              <th>Remediation Method</th>
+              <th>Component</th>
+              <th>Grade</th>
+              <th>Defect</th>
+              <th>Family</th>
+              <th>Description</th>
+              <th>DefectCat</th>
+              <th>Source</th>
+              <th>Link</th>
+            </tr></thead>
+            <tbody id="detail-tbody"></tbody>
+            <tfoot><tr id="detail-tfoot"><td colspan="10"></td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══ CENTER-RIGHT ══ -->
+    <div class="na-right">
+
+      <!-- Remediation Methods table -->
+      <div class="chart-panel tbl-panel" style="flex:0 0 220px;">
+        <div class="panel-title-bar">Remediation Methods</div>
+        <div class="tbl-scroll">
+          <table class="na-tbl">
+            <thead><tr><th>Remediation Method</th><th style="text-align:right;">Work Count</th></tr></thead>
+            <tbody id="remd-method-tbody"></tbody>
+            <tfoot><tr id="remd-method-tfoot"><td></td><td style="text-align:right;"></td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Cumulative line chart -->
+      <div class="chart-panel" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+        <div class="panel-title-bar">Cumulative MHI and Cumulative Remediation</div>
+        <div style="flex:1;padding:6px 8px 8px;min-height:0;">
+          <canvas id="canvas-cumul"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ══ FAR RIGHT ══ -->
+    <div class="na-far-right">
+
+      <!-- Defects Cause QR 4/5 table -->
+      <div class="chart-panel tbl-panel" style="flex:0 0 220px;">
+        <div class="panel-title-bar">Defects Cause QR 4/5</div>
+        <div class="tbl-scroll">
+          <table class="na-tbl">
+            <thead><tr><th>Description</th><th style="text-align:right;">Count</th></tr></thead>
+            <tbody id="defects-tbody"></tbody>
+            <tfoot><tr id="defects-tfoot"><td></td><td style="text-align:right;"></td></tr></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <!-- Remediation/Rescore Count bar chart -->
+      <div class="chart-panel remd-count-panel" style="flex:1;min-height:0;display:flex;flex-direction:column;">
+        <div class="panel-title-bar">Remediation/Rescore Count</div>
+        <div class="remd-count-chart-wrap">
+          <canvas id="canvas-remd-count"></canvas>
+        </div>
+        <div class="progress-overlay">
+          <div class="progress-title">Progress<br />Repaired/Recoded per Total</div>
+          <div class="gauge-wrap">
+          <svg class="gauge-svg" id="gauge-svg" width="94" height="54" viewBox="0 0 140 80">
+            <path id="gauge-bg"   d="" fill="none" stroke="rgba(113,144,186,0.15)" stroke-width="12"/>
+            <path id="gauge-fill" d="" fill="none" stroke="#1C6E8C" stroke-width="12" stroke-linecap="round"/>
+          </svg>
+          <div class="gauge-label" id="gauge-pct">-%</div>
+          <div class="gauge-sub" id="gauge-sub"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <div class="na-footer">
+    <a href="decision-matrix.html">
+      "No Action" for MH Cover Corroded &amp; Frame Missing - see Rehab Matrix / Decision Tree
+    </a>
+    <span>Rescored: manhole re-reviewed and scored below QR 4/5</span>
+  </div>
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+const GRID = 'rgba(139,175,214,0.12)';
+const TICK = 'rgba(180,192,208,0.85)';
+const THEME = ['#118DFF','#12239E','#E66C37','#6B007B','#E044A7','#744EC2','#D9B300','#D64550','#197278','#1AAB40'];
+
+Chart.defaults.color = TICK;
+Chart.defaults.font.family = "'Segoe UI', Arial, sans-serif";
+Chart.defaults.font.size = 10;
+
+const valueLabelPlugin = {
+  id: 'valueLabels',
+  afterDatasetsDraw(chart, args, opts) {
+    if (!opts || !opts.enabled) return;
+    const { ctx } = chart;
+    ctx.save();
+    ctx.fillStyle = opts.color || '#dce8f4';
+    ctx.font = `${opts.fontSize || 9}px 'Segoe UI', Arial, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'bottom';
+    chart.data.datasets.forEach((dataset, datasetIndex) => {
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, index) => {
+        const value = dataset.data[index];
+        if (value == null) return;
+        const label = Number(value).toLocaleString();
+        ctx.fillText(label, bar.x, bar.y - 5);
+      });
+    });
+    ctx.restore();
+  }
+};
+Chart.register(valueLabelPlugin);
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let dateFrom = null, dateTo = null;
+let activeComps    = new Set();
+let activeDescs    = new Set();
+let activeMethods  = new Set();  // empty = all selected
+let _allMethods = [], _allComps = [], _allDescs = [];
+const charts = {};
+
+// ── Data lookup ───────────────────────────────────────────────────────────────
+// Build InspectionID → QR45 row map for joining
+let _qr45Map = {};
+
+function buildLookup() {
+  _qr45Map = {};
+  (window.DATA_NA.qr45 || []).forEach(r => {
+    if (r.InspectionID) _qr45Map[r.InspectionID] = r;
+  });
+}
+
+// ── Filters ───────────────────────────────────────────────────────────────────
+function parseDate(s) {
+  if (!s) return null;
+  return new Date(s.substring(0, 10) + 'T00:00:00');
+}
+
+function getFilteredQR45() {
+  const rows = window.DATA_NA.qr45 || [];
+  return rows.filter(r => {
+    const d = parseDate(r.Date);
+    if (dateFrom && d && d < dateFrom) return false;
+    if (dateTo   && d && d > dateTo)   return false;
+    return true;
+  });
+}
+
+function getFilteredDetailRows() {
+  const validIDs = new Set(getFilteredQR45().map(r => r.InspectionID));
+  const detail = window.DATA_NA.detail || [];
+  return detail.filter(r => {
+    if (!validIDs.has(r.InspectionID)) return false;
+    if (activeComps.size > 0 && !activeComps.has(r.ComponentDescription)) return false;
+    if (activeDescs.size > 0 && !activeDescs.has(r.Description)) return false;
+    if (activeMethods.size > 0 && !activeMethods.has(r.No_Action_Fixing_Method)) return false;
+    return true;
+  });
+}
+
+function getFilteredRemediation() {
+  const rows = window.DATA_NA.remediation || [];
+  return rows.filter(r => {
+    const d = parseDate(r.Date);
+    if (dateFrom && d && d < dateFrom) return false;
+    if (dateTo   && d && d > dateTo)   return false;
+    return true;
+  });
+}
+
+// ── Gauge helpers ─────────────────────────────────────────────────────────────
+function arcPath(cx, cy, r, startDeg, endDeg) {
+  const toRad = d => d * Math.PI / 180;
+  const x1 = cx + r * Math.cos(toRad(startDeg));
+  const y1 = cy + r * Math.sin(toRad(startDeg));
+  const x2 = cx + r * Math.cos(toRad(endDeg));
+  const y2 = cy + r * Math.sin(toRad(endDeg));
+  const large = (endDeg - startDeg) > 180 ? 1 : 0;
+  return `M ${x1} ${y1} A ${r} ${r} 0 ${large} 1 ${x2} ${y2}`;
+}
+function updateGauge(value, max) {
+  const pct = max > 0 ? value / max : 0;
+  const start = 180, end = 360;
+  const fillEnd = start + pct * (end - start);
+  document.getElementById('gauge-bg').setAttribute('d', arcPath(70, 70, 52, start, end));
+  document.getElementById('gauge-fill').setAttribute('d', arcPath(70, 70, 52, start, fillEnd));
+  document.getElementById('gauge-pct').textContent = value.toLocaleString();
+  document.getElementById('gauge-sub').innerHTML = `<span>0K</span><span>${Math.round(max / 1000)}K</span>`;
+}
+
+// ── KPIs ──────────────────────────────────────────────────────────────────────
+function renderKPIs(qr45Filtered) {
+  const mhSet = new Set(qr45Filtered.map(r => r.UPSMH_ID).filter(Boolean));
+  document.getElementById('mh-count').textContent = mhSet.size.toLocaleString();
+
+  // Source table with data-bars
+  const srcMap = {};
+  qr45Filtered.forEach(r => { if (r.Source) srcMap[r.Source] = (srcMap[r.Source] || 0) + 1; });
+  const srcRows = Object.entries(srcMap).sort((a, b) => b[1] - a[1]);
+  const maxVal = srcRows.length ? srcRows[0][1] : 1;
+  document.getElementById('src-tbody').innerHTML = srcRows.map(([s, n]) => {
+    const pct = Math.round((n / maxVal) * 100);
+    return `<tr>
+      <td>${escH(s)}</td>
+      <td class="src-bar-cell">
+        <div class="src-bar-bg" style="width:${pct}%;"></div>
+        <span class="src-bar-num">${n.toLocaleString()}</span>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function renderDefectTypes(detailRows) {
+  const famMap = {};
+  detailRows.forEach(r => { if (r.Family) famMap[r.Family] = (famMap[r.Family] || 0) + 1; });
+  const fams = Object.entries(famMap).sort((a, b) => a[0].localeCompare(b[0]));
+  document.getElementById('deftype-list').innerHTML = fams
+    .map(([f, n]) => `<div class="deftype-row"><span class="deftype-name">${escH(f)}</span><span class="deftype-cnt">${n}</span></div>`).join('');
+}
+
+// ── Defect Category chart ─────────────────────────────────────────────────────
+function renderDefCatChart(qr45Filtered) {
+  const map = {};
+  qr45Filtered.forEach(r => { if (r.DefectCat) map[r.DefectCat] = (map[r.DefectCat] || 0) + 1; });
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  const labels = sorted.map(e => e[0]);
+  const vals   = sorted.map(e => e[1]);
+  if (charts.defcat) charts.defcat.destroy();
+  charts.defcat = new Chart(document.getElementById('canvas-defcat'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: vals, backgroundColor: labels.map((_, i) => THEME[i % THEME.length]), borderRadius: 2 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: { legend: { display: false }, tooltip: { callbacks: { title: i => i[0].label, label: i => ' ' + i.raw.toLocaleString() } } },
+      layout: { padding: { top: 8 } },
+      scales: { x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 8 }, maxRotation: 45, minRotation: 25, autoSkip: false, callback(v) { const l = this.getLabelForValue(v); return l.length > 10 ? l.substring(0,9)+'…' : l; } } }, y: { beginAtZero: true, grace: '12%', grid: { color: GRID }, ticks: { color: TICK, font: { size: 8 }, maxTicksLimit: 4 } } }
+    }
+  });
+}
+
+// ── Method multi-select dropdown ──────────────────────────────────────────────
+let _methodDropdownOpen = false;
+
+function toggleMethodDropdown() {
+  _methodDropdownOpen = !_methodDropdownOpen;
+  document.getElementById('method-list').classList.toggle('open', _methodDropdownOpen);
+  document.getElementById('method-btn').classList.toggle('open', _methodDropdownOpen);
+  if (_methodDropdownOpen) {
+    // close on outside click
+    setTimeout(() => {
+      document.addEventListener('click', closeMethodDropdownOutside, { once: true });
+    }, 0);
+  }
+}
+function closeMethodDropdownOutside(e) {
+  const wrap = document.querySelector('.method-dropdown-wrap');
+  if (wrap && !wrap.contains(e.target)) {
+    _methodDropdownOpen = false;
+    document.getElementById('method-list').classList.remove('open');
+    document.getElementById('method-btn').classList.remove('open');
+  }
+}
+
+function buildMethodDropdown(allMethods) {
+  _allMethods = allMethods;
+  const allChecked = activeMethods.size === 0;
+  let html = `<label class="method-opt method-opt-all" onclick="toggleMethodAll(event)">
+    <input type="checkbox" ${allChecked ? 'checked' : ''} id="method-all-cb" onchange="toggleMethodAll(event)" />
+    Select All
+  </label>`;
+  html += allMethods.map((m, i) => {
+    const checked = activeMethods.size === 0 || activeMethods.has(m);
+    return `<label class="method-opt${checked ? ' selected' : ''}">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleMethod(${i},this.checked)" />
+      ${escH(m)}
+    </label>`;
+  }).join('');
+  document.getElementById('method-list').innerHTML = html;
+
+  // Update button label
+  const btn = document.getElementById('method-btn');
+  if (activeMethods.size === 0) btn.textContent = 'All Methods';
+  else if (activeMethods.size === 1) btn.textContent = [...activeMethods][0];
+  else btn.textContent = `${activeMethods.size} methods selected`;
+  // Restore open chevron
+  btn.classList.toggle('open', _methodDropdownOpen);
+}
+
+function toggleMethod(idx, checked) {
+  const m = _allMethods[idx];
+  if (checked) {
+    if (activeMethods.size === _allMethods.length - 1) activeMethods.clear();
+    else activeMethods.add(m);
+  } else {
+    if (activeMethods.size === 0) _allMethods.forEach(x => { if (x !== m) activeMethods.add(x); });
+    else activeMethods.delete(m);
+  }
+  renderAll();
+}
+function toggleMethodAll(e) {
+  e.stopPropagation();
+  activeMethods.clear();
+  renderAll();
+}
+
+// ── Estimate chart ─────────────────────────────────────────────────────────────
+function renderEstChart(detailRows) {
+  // All detail rows (unfiltered by method) to build the full method list for dropdown
+  const allDetailForMethods = (() => {
+    const validIDs = new Set(getFilteredQR45().map(r => r.InspectionID));
+    return (window.DATA_NA.detail || []).filter(r => {
+      if (!validIDs.has(r.InspectionID)) return false;
+      if (activeComps.size > 0 && !activeComps.has(r.ComponentDescription)) return false;
+      if (activeDescs.size > 0 && !activeDescs.has(r.Description)) return false;
+      return true;
+    });
+  })();
+
+  // Build full method list from unfiltered (for dropdown)
+  const allMethodSet = new Set(allDetailForMethods.map(r => r.No_Action_Fixing_Method || '(none)'));
+  const allMethodsSorted = [...allMethodSet].sort();
+  buildMethodDropdown(allMethodsSorted);
+
+  // Work counts are distinct no-action work items per method.
+  const map = {};
+  detailRows.forEach(r => {
+    const m = r.No_Action_Fixing_Method || '(none)';
+    if (!map[m]) map[m] = new Set();
+    if (r.No_Action_Work_ID) map[m].add(r.No_Action_Work_ID);
+  });
+  const sorted = Object.entries(map).sort((a, b) => b[1].size - a[1].size);
+  const labels = sorted.map(e => e[0]);
+  const vals   = sorted.map(e => e[1].size);
+  const colors = labels.map((_, i) => THEME[i % THEME.length]);
+
+  const PX = Math.max(36, labels.length * 54);
+  document.getElementById('est-inner').style.width = PX + 'px';
+
+  if (charts.est) charts.est.destroy();
+  charts.est = new Chart(document.getElementById('canvas-est'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: vals, backgroundColor: colors, borderRadius: 3, label: 'Work Count' }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: i => ' Work Count: ' + i.raw.toLocaleString() } },
+      },
+      scales: {
+        x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 9 }, maxRotation: 40, minRotation: 20, callback(v) { const l = this.getLabelForValue(v); return l.length > 18 ? l.substring(0,17)+'…' : l; } } },
+        y: { beginAtZero: true, grace: '10%', grid: { color: GRID }, ticks: { color: TICK, font: { size: 9 } } }
+      }
+    }
+  });
+}
+
+// ── Remediation Methods table ─────────────────────────────────────────────────
+function renderRemdMethodTable(detailRows) {
+  const map = {};
+  detailRows.forEach(r => {
+    const m = r.No_Action_Fixing_Method || '(none)';
+    if (!map[m]) map[m] = new Set();
+    if (r.No_Action_Work_ID) map[m].add(r.No_Action_Work_ID);
+  });
+  const sorted = Object.entries(map).sort((a, b) => b[1].size - a[1].size);
+  let total = 0;
+  const maxVal = sorted.length ? sorted[0][1].size : 1;
+  document.getElementById('remd-method-tbody').innerHTML = sorted.map(([m, s]) => {
+    total += s.size;
+    const pct = Math.round((s.size / maxVal) * 100);
+    return `<tr><td>${escH(m)}</td><td class="tbl-bar-cell">
+      <div class="tbl-bar-bg" style="width:${pct}%;"></div>
+      <span class="tbl-bar-num">${s.size.toLocaleString()}</span>
+    </td></tr>`;
+  }).join('');
+  const ft = document.getElementById('remd-method-tfoot');
+  ft.cells[0].textContent = 'Total';
+  ft.cells[1].textContent = total.toLocaleString();
+  ft.cells[1].style.textAlign = 'right';
+}
+
+// ── Defects Cause table ────────────────────────────────────────────────────────
+function renderDefectsTable(detailRows) {
+  const map = {};
+  detailRows.forEach(r => {
+    const desc = r.Description || r.Defect || '?';
+    map[desc] = (map[desc] || 0) + 1;
+  });
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  let total = 0;
+  const maxVal = sorted.length ? sorted[0][1] : 1;
+  document.getElementById('defects-tbody').innerHTML = sorted.map(([d, n]) => {
+    total += n;
+    const pct = Math.round((n / maxVal) * 100);
+    return `<tr><td>${escH(d)}</td><td class="tbl-bar-cell">
+      <div class="tbl-bar-bg" style="width:${pct}%;"></div>
+      <span class="tbl-bar-num">${n.toLocaleString()}</span>
+    </td></tr>`;
+  }).join('');
+  const ft = document.getElementById('defects-tfoot');
+  ft.cells[0].textContent = 'Total';
+  ft.cells[1].textContent = total.toLocaleString();
+  ft.cells[1].style.textAlign = 'right';
+}
+
+// ── Remediation count bar (ribbon substitute) ─────────────────────────────────
+function renderRemdCountChart(remdFiltered) {
+  const map = {};
+  remdFiltered.forEach(r => { if (r.Remediation) map[r.Remediation] = (map[r.Remediation] || 0) + 1; });
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  const labels = sorted.map(e => e[0]);
+  const vals   = sorted.map(e => e[1]);
+  if (charts.remdCount) charts.remdCount.destroy();
+  charts.remdCount = new Chart(document.getElementById('canvas-remd-count'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: vals, backgroundColor: labels.map((_, i) => ['#0B3854','#84BD00','#118DFF','#E66C37'][i % 4]), borderRadius: 2, maxBarThickness: 34 }] },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { top: 16, right: 4 } },
+      plugins: {
+        legend: { display: false },
+        valueLabels: { enabled: true, color: '#dce8f4', fontSize: 9 },
+        tooltip: { callbacks: { label: i => ' ' + i.raw.toLocaleString() } }
+      },
+      scales: {
+        x: { grid: { display: false }, ticks: { color: TICK, font: { size: 9 }, maxRotation: 0, minRotation: 0, callback(v) { const l = this.getLabelForValue(v); return l.length > 18 ? l.substring(0,17)+'…' : l; } } },
+        y: { beginAtZero: true, grace: '18%', grid: { color: GRID }, ticks: { color: TICK, font: { size: 9 }, maxTicksLimit: 4 } }
+      }
+    }
+  });
+}
+
+// ── Cumulative line chart ──────────────────────────────────────────────────────
+function renderCumulChart(qr45Filtered, remdFiltered) {
+  // Flat reference lines: totals for the selected date range, drawn across all
+  // years so the two magnitudes can be compared at a glance.
+  const totalMHI = qr45Filtered.length;
+  const totalRemd = remdFiltered.length;
+
+  const yearSet = new Set();
+  qr45Filtered.forEach(r => { if (r.Date) yearSet.add(r.Date.substring(0, 4)); });
+  remdFiltered.forEach(r => { if (r.Date) yearSet.add(r.Date.substring(0, 4)); });
+  const years = [...yearSet].sort();
+
+  const cumQVals = years.map(() => totalMHI);
+  const cumRVals = years.map(() => totalRemd);
+
+  if (charts.cumul) charts.cumul.destroy();
+  charts.cumul = new Chart(document.getElementById('canvas-cumul'), {
+    type: 'line',
+    data: {
+      labels: years,
+      datasets: [
+        { label: 'Cumulative 45MHI', data: cumQVals, borderColor: '#118DFF', backgroundColor: 'rgba(17,141,255,0.08)', borderWidth: 3, pointRadius: 3, pointHoverRadius: 4, tension: 0, fill: false },
+        { label: 'Cumulative Remediation', data: cumRVals, borderColor: '#84BD00', backgroundColor: 'rgba(132,189,0,0.08)', borderWidth: 3, pointRadius: 3, pointHoverRadius: 4, tension: 0, fill: false },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: true, align: 'start', labels: { color: TICK, font: { size: 10 }, usePointStyle: true, pointStyle: 'circle', boxWidth: 7, boxHeight: 7 } },
+        tooltip: { mode: 'index', intersect: false }
+      },
+      scales: {
+        x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 10 } } },
+        y: { beginAtZero: true, grace: '8%', grid: { color: GRID }, ticks: { color: TICK, font: { size: 10 } } }
+      }
+    }
+  });
+}
+
+// ── Detail table ──────────────────────────────────────────────────────────────
+const MAX_DETAIL = 500;
+function renderDetailTable(detailRows) {
+  document.getElementById('detail-count').textContent =
+    `${detailRows.length.toLocaleString()} rows${detailRows.length > MAX_DETAIL ? ` (showing first ${MAX_DETAIL})` : ''}`;
+
+  const slice = detailRows.slice(0, MAX_DETAIL);
+  document.getElementById('detail-tbody').innerHTML = slice.map(r => {
+    const qr = _qr45Map[r.InspectionID] || {};
+    const link = qr.Inspection_Link
+      ? `<a class="insp-link" href="${escH(qr.Inspection_Link)}" target="_blank" rel="noopener">↗</a>`
+      : '';
+    return `<tr>
+      <td>${escH(qr.UPSMH_ID || '')}</td>
+      <td>${escH(r.No_Action_Fixing_Method || '')}</td>
+      <td>${escH(r.ComponentDescription || '')}</td>
+      <td>${r.Grade != null ? r.Grade : ''}</td>
+      <td>${escH(r.Defect || '')}</td>
+      <td>${escH(r.Family || '')}</td>
+      <td>${escH(r.Description || '')}</td>
+      <td>${escH(qr.DefectCat || '')}</td>
+      <td>${escH(qr.Source || '')}</td>
+      <td>${link}</td>
+    </tr>`;
+  }).join('');
+
+  const ft = document.getElementById('detail-tfoot');
+  ft.cells[0].textContent = `${detailRows.length.toLocaleString()} total rows`;
+}
+
+// ── Component slicer ──────────────────────────────────────────────────────────
+function buildCompSlicer() {
+  document.getElementById('comp-list').innerHTML = _allComps.map((c, i) => {
+    const checked = activeComps.size === 0 || activeComps.has(c);
+    return `<label class="slicer-item${checked ? ' selected' : ''}">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleComp(${i},this.checked)" />
+      ${escH(c)}
+    </label>`;
+  }).join('');
+  const cb = document.getElementById('comp-all-cb');
+  if (activeComps.size === 0) { cb.checked = true; cb.indeterminate = false; }
+  else if (activeComps.size === _allComps.length) { cb.checked = false; cb.indeterminate = false; }
+  else { cb.indeterminate = true; cb.checked = false; }
+}
+
+function toggleComp(idx, checked) {
+  const c = _allComps[idx];
+  if (checked) {
+    if (activeComps.size === _allComps.length - 1) activeComps.clear();
+    else activeComps.add(c);
+  } else {
+    if (activeComps.size === 0) _allComps.forEach(x => { if (x !== c) activeComps.add(x); });
+    else activeComps.delete(c);
+  }
+  activeDescs.clear();
+  renderAll();
+}
+function toggleCompAll() { activeComps.clear(); activeDescs.clear(); renderAll(); }
+
+// ── Desc slicer (self-filter) ─────────────────────────────────────────────────
+function buildDescSlicer(detailRowsNoDescFilter) {
+  _allDescs = [...new Set(detailRowsNoDescFilter.map(r => r.Description).filter(Boolean))].sort();
+  document.getElementById('desc-list').innerHTML = _allDescs.map((d, i) => {
+    const checked = activeDescs.size === 0 || activeDescs.has(d);
+    return `<label class="slicer-item${checked ? ' selected' : ''}">
+      <input type="checkbox" ${checked ? 'checked' : ''} onchange="toggleDesc(${i},this.checked)" />
+      ${escH(d)}
+    </label>`;
+  }).join('');
+  const cb = document.getElementById('desc-all-cb');
+  if (activeDescs.size === 0) { cb.checked = true; cb.indeterminate = false; }
+  else if (activeDescs.size === _allDescs.length) { cb.checked = false; cb.indeterminate = false; }
+  else { cb.indeterminate = true; cb.checked = false; }
+}
+
+function toggleDesc(idx, checked) {
+  const d = _allDescs[idx];
+  if (checked) {
+    if (activeDescs.size === _allDescs.length - 1) activeDescs.clear();
+    else activeDescs.add(d);
+  } else {
+    if (activeDescs.size === 0) _allDescs.forEach(x => { if (x !== d) activeDescs.add(x); });
+    else activeDescs.delete(d);
+  }
+  renderAll();
+}
+function toggleDescAll() { activeDescs.clear(); renderAll(); }
+
+// ── Date handlers ─────────────────────────────────────────────────────────────
+function onDateChange() {
+  const f = document.getElementById('date-from').value;
+  const t = document.getElementById('date-to').value;
+  dateFrom = f ? new Date(f + 'T00:00:00') : null;
+  dateTo   = t ? new Date(t + 'T23:59:59') : null;
+  renderAll();
+}
+function clearDates() {
+  document.getElementById('date-from').value = '';
+  document.getElementById('date-to').value = '';
+  dateFrom = dateTo = null;
+  renderAll();
+}
+
+// ── Main render ────────────────────────────────────────────────────────────────
+function renderAll() {
+  const qr45Filtered = getFilteredQR45();
+  const remdFiltered = getFilteredRemediation();
+
+  // Detail rows without desc filter (for self-filter slicer)
+  const detailNoDesc = (() => {
+    const validIDs = new Set(qr45Filtered.map(r => r.InspectionID));
+    return (window.DATA_NA.detail || []).filter(r => {
+      if (!validIDs.has(r.InspectionID)) return false;
+      if (activeComps.size > 0 && !activeComps.has(r.ComponentDescription)) return false;
+      if (activeMethods.size > 0 && !activeMethods.has(r.No_Action_Fixing_Method)) return false;
+      return true;
+    });
+  })();
+
+  const detailFiltered = activeDescs.size > 0
+    ? detailNoDesc.filter(r => activeDescs.has(r.Description))
+    : detailNoDesc;
+
+  buildCompSlicer();
+  buildDescSlicer(detailNoDesc);
+
+  renderKPIs(qr45Filtered);
+  renderDefectTypes(detailFiltered);
+  renderDefCatChart(qr45Filtered);
+  renderEstChart(detailFiltered);
+  renderRemdMethodTable(detailFiltered);
+  renderDefectsTable(detailFiltered);
+  renderDetailTable(detailFiltered);
+  renderCumulChart(qr45Filtered, remdFiltered);
+  renderRemdCountChart(remdFiltered);
+
+  // Gauge uses all QR45 + all Remediation (not date-filtered) for % progress
+  const totalQR45 = window.DATA_NA.qr45.length;
+  const totalRemd = window.DATA_NA.remediation.length;
+  updateGauge(totalRemd, totalQR45);
+}
+
+// ── Layout height ─────────────────────────────────────────────────────────────
+function setPageHeight() {
+  const topbar  = document.querySelector('.topbar');
+  const subtabs = document.querySelector('.subtabs');
+  const footer  = document.querySelector('.na-footer');
+  const page    = document.getElementById('na-page');
+  const avail   = window.innerHeight
+    - (topbar  ? topbar.offsetHeight  : 0)
+    - (subtabs ? subtabs.offsetHeight : 0)
+    - 10;
+  page.style.height = avail + 'px';
+}
+
+function escH(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  buildLookup();
+  _allComps = [...new Set((window.DATA_NA.detail || []).map(r => r.ComponentDescription).filter(Boolean))].sort();
+  _allMethods = [...new Set((window.DATA_NA.detail || []).map(r => r.No_Action_Fixing_Method).filter(Boolean))].sort();
+
+  document.getElementById('date-from').addEventListener('change', onDateChange);
+  document.getElementById('date-to').addEventListener('change', onDateChange);
+
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    const wrap = document.querySelector('.method-dropdown-wrap');
+    if (wrap && !wrap.contains(e.target) && _methodDropdownOpen) {
+      _methodDropdownOpen = false;
+      document.getElementById('method-list').classList.remove('open');
+      document.getElementById('method-btn').classList.remove('open');
+    }
+  });
+
+  setPageHeight();
+  renderAll();
+}
+
+window.addEventListener('resize', () => { setPageHeight(); Object.values(charts).forEach(c => c.resize()); });
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSO Analysis | SSO Reporting Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script src="assets/chartjs/chart.min.js"></script>
+  <script src="data.js"></script>
+  <style>
+    html, body { height:100%; overflow:hidden; }
+    .page-body {
+      height:calc(100vh - 142px);
+      display:flex; flex-direction:column;
+      padding:0 18px 8px; overflow:hidden;
+    }
+
+    /* ── Filter bar ────────────────────────────────────────────────────────── */
+    .filter-bar {
+      display:flex; align-items:center; gap:8px;
+      padding:7px 0; border-bottom:1px solid rgba(122,156,199,.12);
+      margin-bottom:6px; flex-shrink:0; flex-wrap:nowrap;
+    }
+    .f-label { font-size:11px; color:var(--muted); font-weight:600; white-space:nowrap; }
+    .f-select, .f-date {
+      height:28px; padding:0 8px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text); font:inherit; font-size:12px;
+    }
+    .f-select { min-width:110px; }
+    .f-date   { width:120px; }
+    .f-sep    { color:var(--muted); font-size:12px; }
+    .f-divider { width:1px; height:20px; background:rgba(120,150,190,.18); flex-shrink:0; }
+    .reset-btn {
+      height:28px; padding:0 10px; width:auto; margin:0;
+      border-radius:5px; border:1px solid rgba(108,143,186,.28);
+      background:rgba(40,60,100,.35); color:var(--muted);
+      font:inherit; font-size:11px; cursor:pointer;
+      flex-shrink:0; white-space:nowrap;
+      display:inline-flex; align-items:center;
+    }
+    .reset-btn:hover { background:rgba(40,77,124,.5); color:var(--text); }
+    .row-count { font-size:11px; color:var(--muted); white-space:nowrap; }
+    .row-count strong { color:var(--text); }
+    .sso-card {
+      margin-left:auto;
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:6px;
+      padding:3px 14px 5px; text-align:center; min-width:80px; flex-shrink:0;
+    }
+    .sso-card-lbl { font-size:9px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+    .sso-card-val { font-size:20px; font-weight:700; color:var(--text); line-height:1.2; }
+
+    /* ── Multi-select dropdown ─────────────────────────────────────────────── */
+    .dd-wrap { position:relative; flex-shrink:0; }
+    .dd-btn {
+      height:28px; padding:0 10px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text);
+      font:inherit; font-size:12px; cursor:pointer;
+      white-space:nowrap; display:inline-flex; align-items:center; gap:6px;
+    }
+    .dd-btn:hover { border-color:rgba(108,143,186,.6); }
+    .dd-btn .arr { font-size:9px; color:var(--muted); }
+    .dd-panel {
+      display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:999;
+      background:#0f1e2e; border:1px solid rgba(108,143,186,.3);
+      border-radius:7px; box-shadow:0 8px 28px rgba(0,0,0,.55);
+      min-width:200px; max-height:240px; overflow-y:auto; padding:4px 0;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+    }
+    .dd-panel.open { display:block; }
+    .dd-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:12px; color:var(--text); user-select:none; }
+    .dd-item:hover { background:rgba(40,77,124,.4); }
+    .dd-item input[type=checkbox] { pointer-events:none; accent-color:#118DFF; flex-shrink:0; }
+    .dd-sep { height:1px; background:rgba(120,150,190,.15); margin:3px 0; }
+
+    /* ── Drill toggle ──────────────────────────────────────────────────────── */
+    .drill-toggle { display:flex; border:1px solid rgba(108,143,186,.36); border-radius:5px; overflow:hidden; flex-shrink:0; }
+    .drill-btn { padding:0 10px; height:28px; background:transparent; border:none; color:var(--muted); font:inherit; font-size:11px; cursor:pointer; }
+    .drill-btn.active { background:#118DFF; color:#fff; font-weight:700; }
+
+    /* ── Chiclet row ───────────────────────────────────────────────────────── */
+    .chiclet-row {
+      display:flex; align-items:center; gap:5px;
+      padding:0 0 7px; flex-shrink:0; flex-wrap:wrap;
+    }
+    .chiclet-lbl { font-size:11px; color:var(--muted); font-weight:600; margin-right:4px; white-space:nowrap; }
+    .chiclet-btn {
+      height:26px; padding:0 11px;
+      border-radius:4px; border:2px solid rgba(120,150,190,.25);
+      background:rgba(22,36,58,.7);
+      color:rgba(200,216,236,.75); font:inherit; font-size:11px; font-weight:600;
+      cursor:pointer; white-space:nowrap;
+      display:inline-flex; align-items:center; gap:4px;
+      transition:border-color .15s, background .15s, color .15s;
+    }
+    .chiclet-btn:hover { background:rgba(30,50,85,.8); color:var(--text); }
+    .chiclet-dot { width:7px; height:7px; border-radius:50%; flex-shrink:0; }
+
+    /* ── Layout ────────────────────────────────────────────────────────────── */
+    .content-area { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+    .upper-grid { flex:314; min-height:0; display:grid; grid-template-columns:minmax(0,52fr) minmax(0,48fr); gap:8px; }
+    .lower-grid { flex:344; min-height:0; display:grid; grid-template-columns:minmax(0,52fr) minmax(0,48fr); gap:8px; }
+    .lower-left  { display:flex; flex-direction:column; gap:8px; min-height:0; }
+
+    /* ── Panel ─────────────────────────────────────────────────────────────── */
+    .panel {
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:7px;
+      box-shadow:0 6px 24px rgba(31,39,92,.45);
+      display:flex; flex-direction:column; min-height:0;
+    }
+    .panel-title {
+      background:#001E60; color:#fff; font-size:12px; font-weight:600;
+      text-align:center; padding:4px 10px; border-radius:7px 7px 0 0; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; gap:6px;
+    }
+    .xf-chip {
+      background:rgba(17,141,255,.22); border:1px solid rgba(17,141,255,.5);
+      color:#7dc8ff; font-size:10px; font-weight:600; border-radius:10px;
+      padding:1px 7px; cursor:pointer; white-space:nowrap;
+    }
+    .xf-chip:hover { background:rgba(17,141,255,.38); }
+    .panel-body { flex:1; min-height:0; overflow:hidden; position:relative; }
+
+    /* ── Scrollable chart ──────────────────────────────────────────────────── */
+    .cs-outer {
+      width:100%; height:100%; overflow-x:auto; overflow-y:hidden;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+      box-sizing:border-box;
+    }
+    .cs-outer::-webkit-scrollbar { height:4px; }
+    .cs-outer::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+    .cs-inner { height:100%; position:relative; display:block; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <a href="index.html"
+       style="width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,#118DFF,#12239E);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;letter-spacing:.03em;text-decoration:none;flex-shrink:0;">SSO</a>
+    <div>
+      <h1 style="font-size:22px;margin:0;font-weight:700;">SSO Report</h1>
+      <p style="margin:3px 0 0;font-size:13px;color:var(--muted);">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<div class="subtabs">
+  <button class="subtab active"                          style="font-size:14px;">SSO Analysis</button>
+  <a class="subtab-ghost" href="rsso-analysis.html"      style="text-decoration:none;font-size:14px;">RSSO Analysis</a>
+  <a class="subtab-ghost" href="sso-monthly-report.html" style="text-decoration:none;font-size:14px;">SSO Monthly Report</a>
+  <a class="subtab-ghost" href="full-gis-data.html"      style="text-decoration:none;font-size:14px;">Full GIS SSO/RSSO Data</a>
+  <a class="subtab-ghost" href="rsso-trend.html"         style="text-decoration:none;font-size:14px;">RSSO Trend</a>
+</div>
+
+<div class="page-body">
+
+  <div class="filter-bar">
+    <span class="f-label">Time Frame</span>
+    <input id="f-start" type="date" class="f-date" />
+    <span class="f-sep">→</span>
+    <input id="f-end"   type="date" class="f-date" />
+    <div class="f-divider"></div>
+    <span class="f-label">StrType</span>
+    <select id="f-strtype" class="f-select" style="min-width:90px;">
+      <option value="All">All</option>
+      <option value="Lateral">Lateral</option>
+      <option value="Main">Main</option>
+    </select>
+    <div class="f-divider"></div>
+    <div class="dd-wrap" id="basin-wrap">
+      <button class="dd-btn" onclick="toggleDD('basin')">
+        <span id="basin-label">CD Basin</span><span class="arr">▾</span>
+      </button>
+      <div class="dd-panel" id="basin-panel"></div>
+    </div>
+    <div class="dd-wrap" id="asset-wrap">
+      <button class="dd-btn" onclick="toggleDD('asset')">
+        <span id="asset-label">Asset Type</span><span class="arr">▾</span>
+      </button>
+      <div class="dd-panel" id="asset-panel-dd"></div>
+    </div>
+    <div class="f-divider"></div>
+    <span class="f-label">View</span>
+    <div class="drill-toggle">
+      <button id="drill-year"  class="drill-btn"        onclick="setDrill('year')">Year</button>
+      <button id="drill-month" class="drill-btn active" onclick="setDrill('month')">Month</button>
+    </div>
+    <div class="f-divider"></div>
+    <button class="reset-btn" onclick="resetFilters()">↺ Reset</button>
+    <span class="row-count" id="row-count"></span>
+    <div class="sso-card">
+      <div class="sso-card-lbl">SSO Count</div>
+      <div class="sso-card-val" id="sso-count-card">-</div>
+    </div>
+  </div>
+
+  <div class="chiclet-row" id="chiclet-row">
+    <span class="chiclet-lbl">Category:</span>
+  </div>
+
+  <div class="content-area">
+
+    <!-- Upper row -->
+    <div class="upper-grid">
+
+      <div class="panel">
+        <div class="panel-title" id="cause-title">SSO by Cause</div>
+        <div class="panel-body">
+          <div class="cs-outer">
+            <div class="cs-inner" id="cause-inner">
+              <canvas id="causeChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-title" id="asset-title">SSO By Assets</div>
+        <div class="panel-body">
+          <div class="cs-outer">
+            <div class="cs-inner" id="asset-inner">
+              <canvas id="assetChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Lower row -->
+    <div class="lower-grid">
+
+      <div class="lower-left">
+
+        <div class="panel" style="flex:1; min-height:0;">
+          <div class="panel-title" id="ribbon-title">SSO Trend by Cause</div>
+          <div class="panel-body">
+            <div class="cs-outer">
+              <div class="cs-inner" id="ribbon-inner">
+                <canvas id="ribbonChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel" style="flex:1; min-height:0;">
+          <div class="panel-title" id="trend-title">SSO Count</div>
+          <div class="panel-body">
+            <div class="cs-outer">
+              <div class="cs-inner" id="trend-inner">
+                <canvas id="trendChart"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="panel">
+        <div class="panel-title">SSO Location - Lateral vs. Main</div>
+        <div class="panel-body">
+          <div class="cs-outer">
+            <div class="cs-inner" id="line-inner">
+              <canvas id="lineChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /content-area -->
+</div><!-- /page-body -->
+
+<script>
+// ── Cause colors ──────────────────────────────────────────────────────────────
+const CAUSE_COLORS = {
+  'Grease Blockage': '#e67e22',
+  'Structural':      '#3498db',
+  'Rags/Wipes':      '#9b59b6',
+  'Other Blockage':  '#e74c3c',
+  'Wet Weather':     '#2980b9',
+  'Lift Station':    '#1abc9c',
+  'Roots':           '#27ae60',
+  'ARV Failure-FM':  '#f39c12',
+  'ARV Failure':     '#f39c12',
+  'Private':         '#95a5a6',
+  'WWTP':            '#34495e',
+};
+function catColor(cat) { return CAUSE_COLORS[cat] || '#7b8ea8'; }
+function hex2rgba(hex, a) {
+  const r = parseInt(hex.slice(1,3),16), g = parseInt(hex.slice(3,5),16), b = parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+// ── Period sort & label ───────────────────────────────────────────────────────
+const MONTH_IDX = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+function sortPeriod(a, b) {
+  const pa = a.split('-'), pb = b.split('-');
+  if (pa.length === 2 && isNaN(pa[1])) {
+    return (parseInt(pa[0])*100 + (MONTH_IDX[pa[1]]||0)) - (parseInt(pb[0])*100 + (MONTH_IDX[pb[1]]||0));
+  }
+  return parseInt(a) - parseInt(b);
+}
+// "2024-Jan" → "Jan '24"  |  "2024" → "2024"
+function fmtLabel(p) {
+  const parts = p.split('-');
+  if (parts.length === 2 && isNaN(parts[1])) return parts[1] + " '" + parts[0].slice(2);
+  return p;
+}
+
+// ── Value gradient: yellow #f0e199 → red #ff0052 ──────────────────────────────
+function valueGradient(val, min, max) {
+  const t = max === min ? 1 : Math.max(0, Math.min(1, (val - min) / (max - min)));
+  const r = Math.round(0xf0 + (0xff - 0xf0) * t);
+  const g = Math.round(0xe1 * (1 - t));
+  const b = Math.round(0x99 * (1 - t) + 0x52 * t);
+  return `rgb(${r},${g},${b})`;
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let dateStart = new Date('2024-01-01');
+let dateEnd   = new Date();
+let fStrType  = 'All';
+let fCdBasin  = new Set();
+let fAsset    = new Set();
+let drillMode = 'month'; // default drill level: Month
+const xf = { cause: null, struct: null };
+
+// ── Lookup lists (built once at init) ────────────────────────────────────────
+const ALL_CD_BASINS = [...new Set(window.DATA_SSO.rows.map(r => r.cdBasin).filter(Boolean))].sort();
+const ALL_ASSETS    = [...new Set(window.DATA_SSO.rows.map(r => r.structureType).filter(Boolean))].sort();
+
+// ── Filter ────────────────────────────────────────────────────────────────────
+function filtered(opts = {}) {
+  const { skipCause = false, skipStruct = false, skipStr = false } = opts;
+  return window.DATA_SSO.rows.filter(r => {
+    const d = new Date(r.startDate);
+    if (d < dateStart || d > dateEnd) return false;
+    if (!skipStr && fStrType !== 'All' && r.strType !== fStrType) return false;
+    if (fCdBasin.size > 0 && !fCdBasin.has(r.cdBasin)) return false;
+    if (fAsset.size > 0  && !fAsset.has(r.structureType)) return false;
+    if (!skipCause && xf.cause) {
+      const match = xf.cause === 'ARV Failure' ? r.excursionCategory === 'ARV Failure-FM' : r.excursionCategory === xf.cause;
+      if (!match) return false;
+    }
+    if (!skipStruct && xf.struct && r.structureType !== xf.struct) return false;
+    return true;
+  });
+}
+
+function groupCount(rows, field) {
+  const map = {};
+  rows.forEach(r => { const k = r[field] || 'Unknown'; map[k] = (map[k]||0)+1; });
+  return map;
+}
+
+// ── Canvas sizing ─────────────────────────────────────────────────────────────
+function getPanelH(el) {
+  while (el && !el.classList.contains('panel-body')) el = el.parentElement;
+  return (el ? el.offsetHeight : 0) || 180;
+}
+function setCanvasSize(canvas, inner, w) {
+  const h = getPanelH(inner);
+  inner.style.width  = w + 'px';
+  canvas.style.width = w + 'px'; canvas.style.height = h + 'px';
+  canvas.width  = Math.round(w * devicePixelRatio);
+  canvas.height = Math.round(h * devicePixelRatio);
+}
+// Adaptive width: use panel width unless each item would be thinner than minItemW
+function adaptiveW(outer, n, minItemW) {
+  const pw = (outer ? outer.offsetWidth : 0) || 400;
+  const natural = pw / Math.max(n, 1);
+  return natural >= minItemW ? pw : Math.ceil(n * minItemW + 50);
+}
+
+// ── Chart instances ───────────────────────────────────────────────────────────
+let _causeChart, _assetChart, _ribbonChart, _trendChart, _lineChart;
+
+// ── Plugins ───────────────────────────────────────────────────────────────────
+const topLabelPlugin = {
+  id: 'topLabel',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds, di) => {
+      if (ds.type === 'line') return;
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, i) => {
+        const val = ds.data[i];
+        if (!val) return;
+        ctx.save();
+        ctx.font = '600 10px "Segoe UI",sans-serif';
+        ctx.fillStyle = 'rgba(220,232,244,.82)';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+        ctx.fillText(val.toLocaleString(), bar.x, bar.y - 3);
+        ctx.restore();
+      });
+    });
+  }
+};
+
+const stackTotalPlugin = {
+  id: 'stackTotal',
+  afterDatasetsDraw(chart) {
+    if (!chart.options.scales?.x?.stacked) return;
+    const ctx = chart.ctx;
+    const labels = chart.data.labels || [];
+    labels.forEach((_, i) => {
+      let total = 0, minY = Infinity;
+      chart.data.datasets.forEach(ds => {
+        const meta = chart.getDatasetMeta(chart.data.datasets.indexOf(ds));
+        if (!meta.hidden && meta.data[i]) { total += ds.data[i] || 0; minY = Math.min(minY, meta.data[i].y); }
+      });
+      if (!total || !isFinite(minY)) return;
+      const x = chart.scales.x.getPixelForTick(i);
+      ctx.save();
+      ctx.font = '600 10px "Segoe UI",sans-serif';
+      ctx.fillStyle = 'rgba(220,232,244,.88)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+      ctx.fillText(total.toLocaleString(), x, minY - 3);
+      ctx.restore();
+    });
+  }
+};
+
+// ── Dark Chart.js defaults ────────────────────────────────────────────────────
+Chart.defaults.color = 'rgba(190,210,232,.72)';
+Chart.defaults.borderColor = 'rgba(80,110,150,.18)';
+
+function darkScales(stacked) {
+  return {
+    x: {
+      stacked: !!stacked,
+      grid: { color:'rgba(80,110,150,.13)' },
+      ticks: { font:{size:10}, color:'rgba(190,210,232,.72)', maxRotation:45 }
+    },
+    y: {
+      stacked: !!stacked,
+      grid: { color:'rgba(80,110,150,.13)' },
+      ticks: { font:{size:10}, color:'rgba(190,210,232,.72)' },
+      beginAtZero: true
+    }
+  };
+}
+
+// ── SSO by Cause chart ────────────────────────────────────────────────────────
+function buildCauseChart() {
+  const rows   = filtered({ skipCause: true });
+  const counts = groupCount(rows, 'excursionCategory');
+  const labels = Object.keys(counts).sort((a,b) => counts[b]-counts[a]);
+  const vals   = labels.map(k => counts[k]);
+  const outer  = document.getElementById('cause-inner').closest('.cs-outer');
+  const w      = adaptiveW(outer, labels.length, 64);
+  const canvas = document.getElementById('causeChart');
+  const inner  = document.getElementById('cause-inner');
+  setCanvasSize(canvas, inner, w);
+
+  const bgColors = labels.map(k => {
+    const base = catColor(k);
+    if (!xf.cause) return base;
+    const match = xf.cause === 'ARV Failure' ? k === 'ARV Failure-FM' : k === xf.cause;
+    return match ? base : hex2rgba(base.startsWith('#') ? base : '#7b8ea8', 0.22);
+  });
+
+  if (_causeChart) _causeChart.destroy();
+  _causeChart = new Chart(canvas, {
+    type: 'bar',
+    plugins: [topLabelPlugin],
+    data: {
+      labels,
+      datasets: [{ data: vals, backgroundColor: bgColors, borderWidth: 0, maxBarThickness: 60 }]
+    },
+    options: {
+      animation: false, responsive: false, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y.toLocaleString() } }
+      },
+      scales: {
+        ...darkScales(false),
+        y: { ...darkScales().y, suggestedMax: Math.max(...vals) * 1.14 }
+      },
+      onClick(evt, els) {
+        if (!els.length) { if (xf.cause) { xf.cause = null; render(); } return; }
+        const lbl = labels[els[0].index];
+        xf.cause = xf.cause === lbl ? null : lbl;
+        render();
+      }
+    }
+  });
+
+  // Update title chips
+  const titleEl = document.getElementById('cause-title');
+  const chip = xf.struct ? `<span class="xf-chip" onclick="clearXfStruct()">📦 ${xf.struct} ×</span>` : '';
+  titleEl.innerHTML = 'SSO by Cause ' + chip;
+}
+
+// ── SSO By Assets chart ───────────────────────────────────────────────────────
+function buildAssetChart() {
+  const rows   = filtered({ skipStruct: true });
+  const counts = groupCount(rows, 'structureType');
+  const labels = Object.keys(counts).sort((a,b) => counts[b]-counts[a]);
+  const vals   = labels.map(k => counts[k]);
+  const outer  = document.getElementById('asset-inner').closest('.cs-outer');
+  const w      = adaptiveW(outer, labels.length, 62);
+  const canvas = document.getElementById('assetChart');
+  const inner  = document.getElementById('asset-inner');
+  setCanvasSize(canvas, inner, w);
+
+  const bgColors = labels.map(k => {
+    const base = '#118DFF';
+    if (!xf.struct) return base;
+    return k === xf.struct ? base : 'rgba(17,141,255,.22)';
+  });
+
+  if (_assetChart) _assetChart.destroy();
+  _assetChart = new Chart(canvas, {
+    type: 'bar',
+    plugins: [topLabelPlugin],
+    data: {
+      labels,
+      datasets: [{ data: vals, backgroundColor: bgColors, borderWidth: 0, maxBarThickness: 62 }]
+    },
+    options: {
+      animation: false, responsive: false, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y.toLocaleString() } }
+      },
+      scales: {
+        ...darkScales(false),
+        y: { ...darkScales().y, suggestedMax: Math.max(...vals) * 1.14 }
+      },
+      onClick(evt, els) {
+        if (!els.length) { if (xf.struct) { xf.struct = null; render(); } return; }
+        const lbl = labels[els[0].index];
+        xf.struct = xf.struct === lbl ? null : lbl;
+        render();
+      }
+    }
+  });
+
+  const titleEl = document.getElementById('asset-title');
+  const chip = xf.cause ? `<span class="xf-chip" onclick="clearXfCause()">${xf.cause === 'ARV Failure' ? 'ARV Failure' : xf.cause} ×</span>` : '';
+  titleEl.innerHTML = 'SSO By Assets ' + chip;
+}
+
+// ── SSO Trend (ribbon/stacked bar) ────────────────────────────────────────────
+function buildRibbonChart() {
+  const rows = filtered();
+  const pKey = drillMode === 'year' ? 'year' : 'yearMonth';
+
+  const periodSet = new Set(), causeSet = new Set();
+  rows.forEach(r => { if (r[pKey]) periodSet.add(r[pKey]); if (r.excursionCategory) causeSet.add(r.excursionCategory); });
+
+  const periods = [...periodSet].sort(sortPeriod);
+  const causes  = [...causeSet].sort((a,b) => {
+    const ta = rows.filter(r => r.excursionCategory===a).length;
+    const tb = rows.filter(r => r.excursionCategory===b).length;
+    return tb - ta;
+  });
+
+  const map = {};
+  rows.forEach(r => {
+    if (!r[pKey] || !r.excursionCategory) return;
+    const key = r[pKey] + '|' + r.excursionCategory;
+    map[key] = (map[key]||0) + 1;
+  });
+
+  const outer = document.getElementById('ribbon-inner').closest('.cs-outer');
+  const w = adaptiveW(outer, periods.length, drillMode === 'month' ? 22 : 48);
+  const canvas = document.getElementById('ribbonChart');
+  const inner  = document.getElementById('ribbon-inner');
+  setCanvasSize(canvas, inner, w);
+
+  const datasets = causes.map(c => ({
+    label: c,
+    data:  periods.map(p => map[`${p}|${c}`] || 0),
+    backgroundColor: catColor(c),
+    borderWidth: 0,
+    maxBarThickness: 50,
+  }));
+
+  if (_ribbonChart) _ribbonChart.destroy();
+  _ribbonChart = new Chart(canvas, {
+    type: 'bar',
+    plugins: [stackTotalPlugin],
+    data: { labels: periods.map(fmtLabel), datasets },
+    options: {
+      animation: false, responsive: false, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font:{size:10}, color:'rgba(190,210,232,.72)', boxWidth:10, padding:8 }
+        },
+        tooltip: { mode:'index', intersect:false }
+      },
+      scales: darkScales(true),
+    }
+  });
+
+  const titleEl = document.getElementById('ribbon-title');
+  let chips = '';
+  if (xf.cause)  chips += `<span class="xf-chip" onclick="clearXfCause()">${xf.cause === 'ARV Failure' ? 'ARV Failure' : xf.cause} ×</span>`;
+  if (xf.struct) chips += `<span class="xf-chip" onclick="clearXfStruct()">📦 ${xf.struct} ×</span>`;
+  titleEl.innerHTML = 'SSO Trend by Cause ' + chips;
+}
+
+// ── SSO Count (simple column) ─────────────────────────────────────────────────
+function buildTrendChart() {
+  const rows = filtered();
+  const pKey = drillMode === 'year' ? 'year' : 'yearMonth';
+  const map  = {};
+  rows.forEach(r => { if (r[pKey]) map[r[pKey]] = (map[r[pKey]]||0)+1; });
+  const labels = Object.keys(map).sort(sortPeriod);
+  const vals   = labels.map(k => map[k]);
+
+  const outer = document.getElementById('trend-inner').closest('.cs-outer');
+  const w = adaptiveW(outer, labels.length, drillMode === 'month' ? 22 : 48);
+  const canvas = document.getElementById('trendChart');
+  const inner  = document.getElementById('trend-inner');
+  setCanvasSize(canvas, inner, w);
+
+  // Yellow→red value gradient (min=#f0e199, max=#ff0052)
+  const minV = Math.min(...(vals.length ? vals : [0]));
+  const maxV = Math.max(...(vals.length ? vals : [1]));
+  const bgColors = vals.map(v => valueGradient(v, minV, maxV));
+
+  if (_trendChart) _trendChart.destroy();
+  _trendChart = new Chart(canvas, {
+    type: 'bar',
+    plugins: [topLabelPlugin],
+    data: {
+      labels: labels.map(fmtLabel),
+      datasets: [{ data: vals, backgroundColor: bgColors, borderWidth: 0, maxBarThickness: 48 }]
+    },
+    options: {
+      animation: false, responsive: false, maintainAspectRatio: false,
+      plugins: {
+        legend: { display: false },
+        tooltip: { callbacks: { label: ctx => ' ' + ctx.parsed.y.toLocaleString() } }
+      },
+      scales: {
+        ...darkScales(false),
+        y: { ...darkScales().y, suggestedMax: maxV * 1.18 }
+      }
+    }
+  });
+
+  const titleEl = document.getElementById('trend-title');
+  let chips = '';
+  if (xf.cause)  chips += `<span class="xf-chip" onclick="clearXfCause()">${xf.cause === 'ARV Failure' ? 'ARV Failure' : xf.cause} ×</span>`;
+  if (xf.struct) chips += `<span class="xf-chip" onclick="clearXfStruct()">📦 ${xf.struct} ×</span>`;
+  titleEl.innerHTML = 'SSO Count ' + chips;
+}
+
+// ── SSO Location - Lateral vs. Main (line chart) ──────────────────────────────
+function buildLineChart() {
+  // Always show both lines regardless of fStrType
+  const rows = filtered({ skipStr: true });
+  const pKey = drillMode === 'year' ? 'year' : 'yearMonth';
+
+  const latMap = {}, mainMap = {}, periodSet = new Set();
+  rows.forEach(r => {
+    if (!r[pKey]) return;
+    periodSet.add(r[pKey]);
+    if (r.strType === 'Lateral') latMap[r[pKey]] = (latMap[r[pKey]]||0)+1;
+    if (r.strType === 'Main')    mainMap[r[pKey]] = (mainMap[r[pKey]]||0)+1;
+  });
+
+  const periods = [...periodSet].sort(sortPeriod);
+  const latVals  = periods.map(p => latMap[p]  || 0);
+  const mainVals = periods.map(p => mainMap[p] || 0);
+
+  const outer = document.getElementById('line-inner').closest('.cs-outer');
+  const w = adaptiveW(outer, periods.length, drillMode === 'month' ? 18 : 48);
+  const canvas = document.getElementById('lineChart');
+  const inner  = document.getElementById('line-inner');
+  setCanvasSize(canvas, inner, w);
+
+  if (_lineChart) _lineChart.destroy();
+  _lineChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels: periods.map(fmtLabel),
+      datasets: [
+        {
+          label: 'Lateral Count',
+          data: latVals,
+          borderColor: '#e67e22', backgroundColor: 'rgba(230,126,34,.12)',
+          tension: 0.3, pointRadius: drillMode==='month' ? 2 : 4,
+          pointHoverRadius: 6, borderWidth: 2, fill: true,
+        },
+        {
+          label: 'Main Count',
+          data: mainVals,
+          borderColor: '#118DFF', backgroundColor: 'rgba(17,141,255,.1)',
+          tension: 0.3, pointRadius: drillMode==='month' ? 2 : 4,
+          pointHoverRadius: 6, borderWidth: 2, fill: true,
+        }
+      ]
+    },
+    options: {
+      animation: false, responsive: false, maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: true, position: 'top',
+          labels: { font:{size:11}, color:'rgba(190,210,232,.72)', boxWidth:12, padding:10 }
+        },
+        tooltip: { mode:'index', intersect:false }
+      },
+      scales: darkScales(false)
+    }
+  });
+}
+
+// ── Chiclet row ───────────────────────────────────────────────────────────────
+function buildChiclets() {
+  const row = document.getElementById('chiclet-row');
+  // Remove existing buttons, keep the label
+  [...row.querySelectorAll('.chiclet-btn')].forEach(b => b.remove());
+
+  window.DATA_SSO.chiclet.forEach(item => {
+    const dataKey = item.label === 'ARV Failure' ? 'ARV Failure-FM' : item.label;
+    const col = catColor(dataKey);
+    const isActive = xf.cause === item.label;
+
+    const btn = document.createElement('button');
+    btn.className = 'chiclet-btn';
+    btn.title = item.label;
+
+    if (isActive) {
+      btn.style.borderColor = col;
+      btn.style.background  = hex2rgba(col, 0.2);
+      btn.style.color       = '#fff';
+    }
+
+    btn.innerHTML = `<span class="chiclet-dot" style="background:${col}"></span>${item.short || item.label}`;
+    btn.onclick = () => {
+      xf.cause = xf.cause === item.label ? null : item.label;
+      render();
+    };
+    row.appendChild(btn);
+  });
+}
+
+// ── UI helpers ────────────────────────────────────────────────────────────────
+function clearXfCause()  { xf.cause  = null; render(); }
+function clearXfStruct() { xf.struct = null; render(); }
+
+function updateCard() {
+  const rows = filtered();
+  document.getElementById('sso-count-card').textContent = rows.length.toLocaleString();
+  document.getElementById('row-count').innerHTML = `<strong>${rows.length.toLocaleString()}</strong> events`;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  buildChiclets();
+  buildCauseChart();
+  buildAssetChart();
+  buildRibbonChart();
+  buildTrendChart();
+  buildLineChart();
+  updateCard();
+}
+
+// ── Drill toggle ──────────────────────────────────────────────────────────────
+function setDrill(mode) {
+  drillMode = mode;
+  document.getElementById('drill-year').classList.toggle('active', mode === 'year');
+  document.getElementById('drill-month').classList.toggle('active', mode === 'month');
+  render();
+}
+
+// ── Multi-select dropdown ─────────────────────────────────────────────────────
+const _ddOpen = { basin: false, asset: false };
+
+function toggleDD(id) {
+  Object.keys(_ddOpen).forEach(k => {
+    if (k !== id) { _ddOpen[k] = false; document.getElementById(k + '-panel' + (k==='asset'?'-dd':'')).classList.remove('open'); }
+  });
+  _ddOpen[id] = !_ddOpen[id];
+  const panelId = id === 'asset' ? 'asset-panel-dd' : id + '-panel';
+  document.getElementById(panelId).classList.toggle('open', _ddOpen[id]);
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dd-wrap')) {
+    Object.keys(_ddOpen).forEach(k => { _ddOpen[k] = false; });
+    document.querySelectorAll('.dd-panel').forEach(p => p.classList.remove('open'));
+  }
+});
+
+function buildDD(id, allVals, activeSet, labelEl, allLabel) {
+  const panelId = id === 'asset' ? 'asset-panel-dd' : id + '-panel';
+  const panel = document.getElementById(panelId);
+  const lbl   = document.getElementById(labelEl);
+
+  function renderPanel() {
+    panel.innerHTML = '';
+    // All row
+    const allRow = document.createElement('div');
+    allRow.className = 'dd-item';
+    allRow.innerHTML = `<input type="checkbox" ${activeSet.size===0?'checked':''}> <span>All</span>`;
+    allRow.onclick = () => { activeSet.clear(); renderPanel(); lbl.textContent = allLabel; render(); };
+    panel.appendChild(allRow);
+
+    const sep = document.createElement('div'); sep.className = 'dd-sep'; panel.appendChild(sep);
+
+    allVals.forEach(v => {
+      const checked = activeSet.size === 0 || activeSet.has(v);
+      const row = document.createElement('div');
+      row.className = 'dd-item';
+      row.innerHTML = `<input type="checkbox" ${checked?'checked':''}> <span>${v}</span>`;
+      row.onclick = () => {
+        if (activeSet.size === 0) allVals.forEach(x => activeSet.add(x));
+        if (activeSet.has(v)) activeSet.delete(v);
+        else activeSet.add(v);
+        if (activeSet.size === allVals.length) activeSet.clear();
+        const n = activeSet.size;
+        lbl.textContent = n === 0 ? allLabel : n === 1 ? [...activeSet][0].slice(0,16) : `${n} selected`;
+        renderPanel(); render();
+      };
+      panel.appendChild(row);
+    });
+  }
+
+  renderPanel();
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetFilters() {
+  const rows = window.DATA_SSO.rows;
+  const dates = rows.map(r => r.startDate).filter(Boolean).sort();
+  dateStart = new Date('2024-01-01');
+  dateEnd   = new Date();
+  fStrType  = 'All';
+  fCdBasin.clear();
+  fAsset.clear();
+  xf.cause  = null;
+  xf.struct = null;
+  drillMode = 'month';
+
+  document.getElementById('f-start').value = '2024-01-01';
+  document.getElementById('f-end').value   = new Date().toISOString().slice(0,10);
+  document.getElementById('f-strtype').value = 'All';
+  document.getElementById('basin-label').textContent = 'CD Basin';
+  document.getElementById('asset-label').textContent = 'Asset Type';
+  document.getElementById('drill-year').classList.remove('active');
+  document.getElementById('drill-month').classList.add('active');
+
+  buildDD('basin', ALL_CD_BASINS, fCdBasin, 'basin-label', 'CD Basin');
+  buildDD('asset', ALL_ASSETS,    fAsset,   'asset-label', 'Asset Type');
+  render();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function init() {
+  // Set date inputs
+  document.getElementById('f-start').value = '2024-01-01';
+  document.getElementById('f-end').value   = new Date().toISOString().slice(0,10);
+
+  // Wire up date inputs
+  document.getElementById('f-start').addEventListener('change', e => {
+    dateStart = new Date(e.target.value); render();
+  });
+  document.getElementById('f-end').addEventListener('change', e => {
+    dateEnd = new Date(e.target.value); render();
+  });
+  document.getElementById('f-strtype').addEventListener('change', e => {
+    fStrType = e.target.value; render();
+  });
+
+  // Build dropdowns
+  buildDD('basin', ALL_CD_BASINS, fCdBasin, 'basin-label', 'CD Basin');
+  buildDD('asset', ALL_ASSETS,    fAsset,   'asset-label', 'Asset Type');
+
+  // First render
+  render();
+})();
+</script>
+</body>
+</html>

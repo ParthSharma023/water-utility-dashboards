@@ -1,0 +1,478 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wastewater Operations KPIs - Sewer Assessment</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+
+    /* ── Topbar ── */
+    .topbar { flex-shrink: 0; padding: 12px 18px; gap: 14px; align-items: center; }
+    .tb-title { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0; }
+    .fy-control { display: flex; flex-direction: column; gap: 4px; align-items: flex-end; }
+    .fy-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .fy-pills { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; max-width: 430px; }
+    .fy-pill {
+      padding: 4px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; cursor: pointer;
+      border: 1px solid rgba(124,160,204,0.35); color: var(--muted);
+      background: transparent; font-family: inherit;
+    }
+    .fy-pill.active { background: #3EC7C2; color: #0c1522; border-color: #3EC7C2; }
+    .tb-last { text-align: right; margin-left: auto; white-space: nowrap; }
+    .tb-last-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .tb-last-val { font-size: 13px; color: #F10101; font-style: italic; font-weight: 600; }
+
+    .page-intro {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+      padding: 8px 12px;
+      border-top: 1px solid rgba(139,175,214,0.08);
+      border-bottom: 1px solid rgba(139,175,214,0.12);
+      background: rgba(8,18,32,0.34);
+    }
+    .page-kicker {
+      margin: 0 0 3px;
+      color: #48d0c9;
+      font-size: 10px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .page-heading {
+      margin: 0;
+      color: #fff;
+      font-size: 17px;
+      line-height: 1.15;
+      font-weight: 700;
+    }
+    .page-statement {
+      margin: 4px 0 0;
+      color: #b4c0d0;
+      font-size: 11px;
+      line-height: 1.35;
+      max-width: 760px;
+    }
+
+    /* ── Page body ── */
+    .page-body { flex: 1; min-height: 0; display: flex; gap: 8px; padding: 8px 12px 12px; }
+
+    /* ── Left column - chart ── */
+    .left-col { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+    .chart-panel {
+      flex: 1; min-height: 0; display: flex; flex-direction: column;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3); overflow: hidden;
+    }
+    .panel-title {
+      background: #001E60; color: #fff; font-size: 9.5pt; text-align: center;
+      padding: 3px 8px; flex-shrink: 0; font-family: Arial, sans-serif;
+    }
+    .chart-wrap { flex: 1; min-height: 0; padding: 8px; }
+
+    /* ── Right column ── */
+    .right-col {
+      width: 314px; flex-shrink: 0; display: flex; flex-direction: column; gap: 5px;
+      min-height: 0;
+      padding: 6px;
+      border: 1px solid rgba(139,175,214,0.14);
+      border-radius: 8px;
+      background: rgba(8,18,32,0.22);
+    }
+
+    .r-panel {
+      display: flex; flex-direction: column;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3); overflow: hidden;
+    }
+    .r-panel-body { padding: 9px; flex: 1; min-height: 0; overflow: hidden; }
+
+    /* KPI card dark theme */
+    .r-panel-body .card { font-family: Segoe UI,Arial,sans-serif; background:transparent; border:none; padding:0; }
+    .r-panel-body .title { font-size:13px; font-weight:700; color:#f1f5fb; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+    .r-panel-body .target { font-size:10px; color:#b4c0d0; }
+    .r-panel-body .status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-left:5px; }
+    .r-panel-body .value { font-size:26px; font-weight:700; color:#f1f5fb; margin-bottom:5px; }
+    .r-panel-body .bar-bg { width:100%; height:7px; border-radius:5px; background:rgba(255,255,255,0.1); margin-bottom:5px; overflow:hidden; }
+    .r-panel-body .bar-fill { height:100%; }
+    .r-panel-body .subtitle { font-size:10.5px; color:#b4c0d0; margin-bottom:7px; }
+    .r-panel-body .formula { background:rgba(255,255,255,0.05); padding:6px; border-radius:5px; font-size:10.5px; border:1px solid rgba(139,175,214,0.18); color:#b4c0d0; line-height:1.5; }
+    .r-panel-body .formula strong { color:#f1f5fb; }
+
+    /* Table */
+    .tbl-wrap { overflow: auto; flex: 1; min-height: 0; }
+    table.dtbl { width:100%; border-collapse:collapse; font-size:10px; }
+    table.dtbl th { background:#001E60; color:#fff; padding:4px 6px; font-size:9px; text-align:left; position:sticky; top:0; z-index:1; white-space:nowrap; }
+    table.dtbl td { padding:3px 6px; color:var(--text); border-bottom:1px solid rgba(139,175,214,0.09); white-space:nowrap; }
+    table.dtbl tr:hover td { background:rgba(139,175,214,0.07); }
+
+    /* Calc note */
+    .calc-panel { flex: 1; min-height: 0; }
+    .calc-body { color:#b4c0d0; font-size:10.5px; line-height:1.6; }
+    .calc-body p { margin:0 0 5px; }
+    .calc-body strong { color:#f1f5fb; }
+
+    .right-col,
+    .tbl-wrap,
+    .r-panel-body {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.28) transparent;
+    }
+    .right-col::-webkit-scrollbar,
+    .tbl-wrap::-webkit-scrollbar,
+    .r-panel-body::-webkit-scrollbar {
+      width: 7px;
+      height: 7px;
+    }
+    .right-col::-webkit-scrollbar-thumb,
+    .tbl-wrap::-webkit-scrollbar-thumb,
+    .r-panel-body::-webkit-scrollbar-thumb {
+      background: rgba(139,175,214,0.28);
+      border-radius: 10px;
+    }
+    .right-col::-webkit-scrollbar-track,
+    .tbl-wrap::-webkit-scrollbar-track,
+    .r-panel-body::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    /* legend */
+    .chart-legend { display:flex; gap:14px; justify-content:center; padding:3px 8px 5px; flex-shrink:0; }
+    .legend-item { display:flex; align-items:center; gap:5px; font-size:10px; color:var(--muted); }
+    .legend-line { width:24px; height:3px; border-radius:2px; }
+    .legend-line.dashed { background: repeating-linear-gradient(90deg,currentColor 0,currentColor 4px,transparent 4px,transparent 8px); }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <a class="tb-mark" href="overview.html" title="Home">WO</a>
+  <div class="tb-title">Wastewater Operations KPIs</div>
+  <div class="tb-last">
+    <div class="tb-last-label">Last Update</div>
+    <div class="tb-last-val" id="last-update">-</div>
+  </div>
+</div>
+
+<div class="subtabs">
+  <a class="subtab-ghost subtab" href="overview.html">Overview</a>
+  <a class="subtab-ghost subtab" href="sso-resolution.html">SSO Resolution Time</a>
+  <button class="subtab active">Sewer Assessment</button>
+  <a class="subtab-ghost subtab" href="leak-repair.html">Leak Repair Perf.</a>
+</div>
+
+<section class="page-intro">
+  <div>
+    <div class="page-kicker">KPI 2</div>
+    <h1 class="page-heading">Sewer Assessment</h1>
+    <p class="page-statement">Assess 10% of wastewater mains annually to identify and address issues through cleaning and repairs as needed, aiming to achieve a 5% reduction in sanitary sewer overflows.</p>
+  </div>
+  <div class="fy-control">
+    <div class="fy-label">Fiscal Year</div>
+    <div class="fy-pills" id="fy-pills"></div>
+  </div>
+</section>
+
+<div class="page-body">
+
+  <!-- ── Left: line chart ── -->
+  <div class="left-col">
+    <div class="chart-panel">
+      <div class="panel-title">Sewer Mains Condition Assessment Monthly Progress</div>
+      <div class="chart-wrap"><canvas id="sewer-chart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-line" style="background:#5B84C8"></div>Annual Goal</div>
+        <div class="legend-item"><div class="legend-line" style="background:#E044A7"></div>Cumulative Inspection</div>
+        <div class="legend-item"><div class="legend-line dashed" style="color:#A5ABDA;height:0;border-top:2.5px dashed #A5ABDA"></div>Cumulative Target</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Right column ── -->
+  <div class="right-col">
+
+    <!-- KPI Card -->
+    <div class="r-panel" style="flex:0 0 38%">
+      <div class="panel-title">Performance</div>
+      <div class="r-panel-body" id="kpi-card"></div>
+    </div>
+
+    <!-- Monthly table -->
+    <div class="r-panel" style="flex:0 0 24%">
+      <div class="panel-title">Monthly Wastewater Gravity Main Assessment</div>
+      <div class="r-panel-body" style="padding:0;display:flex;flex-direction:column">
+        <div class="tbl-wrap">
+          <table class="dtbl" id="sewer-tbl"></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Calculation Note - static panel, not collapsible -->
+    <div class="r-panel calc-panel">
+      <div class="panel-title">Calculation Note</div>
+      <div class="r-panel-body calc-body">
+        <p>The performance of this KPI is measured based on the total footage of wastewater gravity mains inspected by CCTV during the fiscal year compared to the total system length.</p>
+        <p><strong>Total system length:</strong> 5,200 miles</p>
+        <p><strong>Target:</strong> At least 10% of the total system (~520 miles) inspected annually.</p>
+        <p><strong>How:</strong> A remote-controlled camera visually inspects every foot of the inside of underground sewer pipes (CCTV inspection).</p>
+      </div>
+    </div>
+
+  </div>
+
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+// ── Fiscal year helper (July-start: sewer cumulative resets each July) ───────
+function getFY(dtStr) {
+  const d = new Date(dtStr);
+  return d.getMonth() >= 6 ? d.getFullYear() + 1 : d.getFullYear();
+}
+
+function fmtMonth(dtStr) {
+  return new Date(dtStr).toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+function fmtMiles(v) {
+  return v != null ? v.toFixed(1) : '-';
+}
+
+function fmtPct(v) {
+  return v != null ? (v * 100).toFixed(1) + '%' : '-';
+}
+
+// ── Attach FY to each row ─────────────────────────────────────────────────────
+DATA_SEWER.rows.forEach(r => { r._fy = getFY(r.Month); });
+
+// ── Available FYs ─────────────────────────────────────────────────────────────
+const allFYs = [...new Set(DATA_SEWER.rows.map(r => r._fy))].sort();
+let selectedFY = 2026;
+
+// ── Filter rows by FY ─────────────────────────────────────────────────────────
+function filteredRows() {
+  return DATA_SEWER.rows.filter(r => r._fy === selectedFY);
+}
+
+// ── Latest non-null row for KPI values ───────────────────────────────────────
+function latestRow(rows) {
+  return rows.filter(r => r['Cumulative Inspection'] != null)
+             .sort((a, b) => new Date(b.Month) - new Date(a.Month))[0] || null;
+}
+
+// ── KPI card render ───────────────────────────────────────────────────────────
+function renderKPI(latest) {
+  if (!latest) {
+    document.getElementById('kpi-card').innerHTML = '<div style="color:var(--muted);font-size:12px;padding:10px">No data for selected period.</div>';
+    return;
+  }
+  const cumul   = latest['Cumulative Inspection'];
+  const target  = latest['Cumulative Target'];
+  const goal    = latest['Annual Goal'];
+  const pct     = latest['Percent'];
+  const monthly = latest['Monthly Inspection'];
+  const month   = fmtMonth(latest.Month);
+  const targetPct = goal > 0 ? target / goal : 0;
+  const variance  = cumul - target;
+  const color     = cumul >= target ? '#0f6d39' : '#d93025';
+  const barW      = Math.min(100, (pct || 0) * 100).toFixed(1);
+
+  document.getElementById('kpi-card').innerHTML = `
+    <div class="card">
+      <div class="title">
+        <div>Sewer Main Assessment</div>
+        <div style="display:flex;align-items:center;gap:5px">
+          <span class="target">YTD target: ${fmtMiles(target)} mi (${fmtPct(targetPct)})</span>
+          <span class="status-dot" style="background:${color}"></span>
+        </div>
+      </div>
+      <div class="value">${fmtPct(pct)}</div>
+      <div class="bar-bg"><div class="bar-fill" style="background:${color};width:${barW}%"></div></div>
+      <div class="subtitle">
+        FY goal: ${fmtMiles(goal)} miles &middot; Latest month (${month}): ${fmtMiles(monthly)} mi
+      </div>
+      <div class="formula">
+        <strong>${fmtMiles(cumul)}</strong> mi inspected / <strong>${fmtMiles(goal)}</strong> mi goal = <strong>${fmtPct(pct)}</strong><br>
+        Variance vs target: <strong style="color:${color}">${variance >= 0 ? '+' : ''}${fmtMiles(variance)} mi</strong>
+      </div>
+    </div>`;
+}
+
+// ── Table ─────────────────────────────────────────────────────────────────────
+function renderTable(rows) {
+  const sorted = rows.filter(r => r['Monthly Inspection'] != null)
+                     .sort((a, b) => new Date(b.Month) - new Date(a.Month));
+  let html = `<thead><tr>
+    <th>Month</th><th>Monthly (mi)</th><th>Cumulative (mi)</th>
+  </tr></thead><tbody>`;
+  for (const r of sorted) {
+    html += `<tr>
+      <td>${fmtMonth(r.Month)}</td>
+      <td>${fmtMiles(r['Monthly Inspection'])}</td>
+      <td>${fmtMiles(r['Cumulative Inspection'])}</td>
+    </tr>`;
+  }
+  document.getElementById('sewer-tbl').innerHTML = html + '</tbody>';
+}
+
+// ── Line chart ────────────────────────────────────────────────────────────────
+const labelPlugin = {
+  id: 'sewerLabels',
+  afterDatasetDraw(chart, args) {
+    if (args.index !== 1) return; // only Cumulative Inspection
+    const { ctx } = chart;
+    const ds   = chart.data.datasets[1];
+    const meta = chart.getDatasetMeta(1);
+    const pcts = chart._sewerPcts || [];
+    ctx.save();
+    ctx.font = 'bold 9px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#E044A7';
+    meta.data.forEach((pt, i) => {
+      const v = ds.data[i];
+      if (v == null) return;
+      const pct = pcts[i];
+      const line1 = `${v.toFixed(1)}mi`;
+      const line2 = pct != null ? `(${(pct * 100).toFixed(1)}%)` : '';
+      ctx.fillText(line1, pt.x, pt.y - 16);
+      if (line2) ctx.fillText(line2, pt.x, pt.y - 6);
+    });
+    ctx.restore();
+  }
+};
+
+let sewerChart = null;
+
+function buildChart(rows) {
+  const withData = rows.filter(r => r['Monthly Inspection'] != null)
+                       .sort((a, b) => new Date(a.Month) - new Date(b.Month));
+  const all = rows.slice().sort((a, b) => new Date(a.Month) - new Date(b.Month));
+
+  const labels    = all.map(r => fmtMonth(r.Month));
+  const cumuls    = all.map(r => r['Cumulative Inspection']);
+  const targets   = all.map(r => r['Cumulative Target']);
+  const goals     = all.map(r => r['Annual Goal']);
+  const pcts      = all.map(r => r['Percent']);
+
+  if (sewerChart) sewerChart.destroy();
+  const canvas = document.getElementById('sewer-chart');
+  sewerChart = new Chart(canvas, {
+    type: 'line',
+    plugins: [labelPlugin],
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Annual Goal',
+          data: goals,
+          borderColor: '#5B84C8',
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          borderWidth: 2,
+          tension: 0,
+          spanGaps: true,
+        },
+        {
+          label: 'Cumulative Inspection',
+          data: cumuls,
+          borderColor: '#E044A7',
+          backgroundColor: 'rgba(224,68,167,0.08)',
+          pointBackgroundColor: '#E044A7',
+          pointRadius: 5,
+          borderWidth: 2.5,
+          tension: 0,
+          spanGaps: false,
+        },
+        {
+          label: 'Cumulative Target',
+          data: targets,
+          borderColor: '#A5ABDA',
+          backgroundColor: 'transparent',
+          pointRadius: 0,
+          borderWidth: 1.8,
+          borderDash: [5, 4],
+          tension: 0,
+          spanGaps: true,
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { top: 22 } },
+      scales: {
+        y: {
+          title: { display: true, text: 'Miles of Sanitary Sewers', color: '#b4c0d0', font: { size: 10 } },
+          ticks: { color: '#b4c0d0', font: { size: 10 } },
+          grid:  { color: 'rgba(139,175,214,0.12)' },
+        },
+        x: {
+          title: { display: true, text: 'Month Year', color: '#b4c0d0', font: { size: 10 } },
+          ticks: { color: '#b4c0d0', font: { size: 10 }, maxRotation: 45 },
+          grid:  { color: 'rgba(139,175,214,0.08)' },
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (v == null) return '';
+              const pct = pcts[ctx.dataIndex];
+              const suffix = (ctx.datasetIndex === 1 && pct != null) ? ` (${(pct*100).toFixed(1)}%)` : '';
+              return ` ${ctx.dataset.label}: ${v.toFixed(1)} mi${suffix}`;
+            }
+          }
+        }
+      }
+    }
+  });
+  sewerChart._sewerPcts = pcts;
+}
+
+// ── Last Update ───────────────────────────────────────────────────────────────
+function updateLastUpdate(latest) {
+  document.getElementById('last-update').textContent =
+    latest ? fmtMonth(latest.Month) : '-';
+}
+
+// ── FY pill buttons ───────────────────────────────────────────────────────────
+function buildFYPills() {
+  const container = document.getElementById('fy-pills');
+  allFYs.forEach(fy => {
+    const btn = document.createElement('button');
+    btn.className = 'fy-pill' + (fy === selectedFY ? ' active' : '');
+    btn.textContent = `FY ${fy}`;
+    btn.addEventListener('click', () => {
+      selectedFY = fy;
+      document.querySelectorAll('.fy-pill').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      renderAll();
+    });
+    container.appendChild(btn);
+  });
+}
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderAll() {
+  const rows   = filteredRows();
+  const latest = latestRow(rows);
+  updateLastUpdate(latest);
+  renderKPI(latest);
+  renderTable(rows);
+  buildChart(rows);
+}
+
+buildFYPills();
+renderAll();
+</script>
+</body>
+</html>

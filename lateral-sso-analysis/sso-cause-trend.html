@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSO Cause Trend - Wastewater Operations</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── Page layout ──────────────────────────────────────────── */
+    .sso-page { padding: 0 18px 28px; }
+
+    .slicer-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0 14px;
+      border-bottom: 1px solid rgba(122,156,199,0.12);
+      margin-bottom: 16px;
+    }
+    .slicer-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .slicer-input {
+      height: 36px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(108,143,186,0.36);
+      background: #102032;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+    }
+    .slicer-input::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 0.9;
+    }
+    .slicer-sep { color: var(--muted); font-size: 13px; }
+
+    /* 2-column grid: left ~44%, right ~56% */
+    .cause-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 11fr) minmax(0, 14fr);
+      gap: 14px;
+      align-items: start;
+    }
+    .cause-grid > * { min-width: 0; }
+
+    /* Panel card */
+    .chart-panel {
+      background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 6px 24px rgba(31,39,92,0.45);
+    }
+    .panel-title-bar {
+      background: #001E60;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      padding: 7px 10px;
+      border-radius: 7px 7px 0 0;
+      letter-spacing: 0.01em;
+    }
+    .panel-body { padding: 12px 14px 14px; }
+
+    /* Horizontal scroll wrappers */
+    .chart-scroll-outer {
+      overflow-x: auto;
+      overflow-y: hidden;
+      width: 100%;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .chart-scroll-outer::-webkit-scrollbar { height: 5px; }
+    .chart-scroll-outer::-webkit-scrollbar-track { background: transparent; }
+    .chart-scroll-outer::-webkit-scrollbar-thumb { background: rgba(139,175,214,0.3); border-radius: 99px; }
+
+    .chart-scroll-inner {
+      min-width: 100%;
+      position: relative;
+    }
+    .chart-scroll-inner-left  { height: 370px; }
+    .chart-scroll-inner-right { height: 460px; }
+
+    /* Summary table (shared) */
+    .summary-table-wrap {
+      overflow-x: auto;
+      border-radius: 0 0 7px 7px;
+    }
+    .summary-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .summary-table th, .summary-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid rgba(113,144,186,0.1);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .summary-table th { font-weight: 700; color: rgba(222,232,244,0.84); }
+    .summary-table thead tr:first-child th { background: rgba(28,36,62,0.96); }
+    .summary-table td.row-label { text-align: left; font-weight: 600; color: var(--text); }
+    .summary-table tbody tr:nth-child(odd)  { background: rgba(21,35,52,0.88); }
+    .summary-table tbody tr:nth-child(even) { background: rgba(18,29,43,0.88); }
+    .summary-table tbody tr:hover { background: rgba(40,77,124,0.5); }
+    .pct-cell { color: rgba(200,218,240,0.75); font-size: 12px; }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ──────────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">Lateral SSO Analysis</h1>
+      <p style="margin:3px 0 0;font-size:14px;">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ─────────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html"
+     style="text-decoration:none;">Lateral SSO Tracking</a>
+  <a class="subtab-ghost" href="sso-general-trend.html"
+     style="text-decoration:none;">SSO General Trend</a>
+  <button class="subtab active">SSO Cause Trend</button>
+</div>
+
+<!-- ── Page body ────────────────────────────────────────────────────────────── -->
+<div class="sso-page">
+
+  <!-- Date slicer -->
+  <div class="slicer-bar">
+    <span class="slicer-label">SSO Start Time:</span>
+    <input id="slicer-start" type="date" class="slicer-input" min="2021-04-01" />
+    <span class="slicer-sep">→</span>
+    <input id="slicer-end" type="date" class="slicer-input" />
+    <span id="slicer-summary" class="slicer-label" style="margin-left:8px;"></span>
+  </div>
+
+  <div class="cause-grid">
+
+    <!-- LEFT COLUMN ─────────────────────────────────────────── -->
+
+    <!-- Left chart: Public Lateral SSO - Blockage Location (stacked) -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Public Lateral SSO w/ Defect in Gravity Main</div>
+      <div class="panel-body" style="padding:8px 10px 10px;">
+        <div class="chart-scroll-outer">
+          <div id="chart-inner-left" class="chart-scroll-inner chart-scroll-inner-left">
+            <canvas id="chart-blockage"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT COLUMN ────────────────────────────────────────── -->
+
+    <!-- Right chart: Public Lateral SSO - Cause Category (clustered + MA lines) -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Public Lateral SSO Break Down by Cause</div>
+      <div class="panel-body" style="padding:8px 10px 10px;">
+        <div class="chart-scroll-outer">
+          <div id="chart-inner-right" class="chart-scroll-inner chart-scroll-inner-right">
+            <canvas id="chart-cause"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Left table: Program Year gravity main summary -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Public Lateral SSO w/ Defect in Gravity Main</div>
+      <div class="panel-body" style="padding:0;">
+        <div class="summary-table-wrap">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th style="text-align:left;">Program Year</th>
+                <th>Public SSO Count</th>
+                <th>Gravity Main</th>
+                <th>% of Total</th>
+              </tr>
+            </thead>
+            <tbody id="left-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right table: Program Year cause breakdown -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Public Lateral SSO Break Down by Cause</div>
+      <div class="panel-body" style="padding:0;">
+        <div class="summary-table-wrap">
+          <table class="summary-table">
+            <thead>
+              <tr>
+                <th style="text-align:left;">Program Year</th>
+                <th>Grease/Rag/Wipe</th>
+                <th class="pct-cell">%</th>
+                <th>Structural</th>
+                <th class="pct-cell">%</th>
+                <th>Other</th>
+                <th class="pct-cell">%</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody id="right-table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /cause-grid -->
+</div><!-- /sso-page -->
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+// ── Constants ─────────────────────────────────────────────────────────────────
+const COLOR_GRAV_MAIN  = '#1C6E8C';  // Gravity Main bar
+const COLOR_CITY_LEAD  = '#12239E';  // City Service Lead bar
+const COLOR_GREASE     = '#E66C37';  // Grease/Rag/Wipe bar
+const COLOR_STRUCTURAL = '#118DFF';  // Structural bar
+const COLOR_OTHERS     = '#197278';  // Others bar
+const COLOR_STRUCT_MA  = '#E8874A';  // Structural 12M MA line
+const COLOR_GREASE_MA  = '#4D6FBA';  // Grease/Rag/Wipe 12M MA line
+const GRID_COLOR       = 'rgba(139,175,214,0.12)';
+const TICK_COLOR       = 'rgba(180,192,208,0.85)';
+const PX_PER_BAR       = 28;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let chartLeft, chartRight;
+let startDate, endDate;
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseLocalDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function toInputVal(d) {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function fmtMonthLabel(monthStart) {
+  return parseLocalDate(monthStart).toLocaleDateString('en-US', { month: 'short' });
+}
+
+function fmtPct(v) {
+  if (v === null || v === undefined) return '-';
+  return (v * 100).toFixed(1) + '%';
+}
+
+// Month overlap filter - same rule as SSO General Trend
+function filteredCauseMonths() {
+  return window.DATA.causeTrendByMonth.filter(r => {
+    const ms     = parseLocalDate(r.monthStart);
+    const nextMs = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
+    return ms <= endDate && nextMs > startDate;
+  });
+}
+
+function setScrollWidth(innerDivId, nMonths) {
+  const el = document.getElementById(innerDivId);
+  if (el) el.style.width = (nMonths * PX_PER_BAR) + 'px';
+}
+
+function enhanceChartScrolling() {
+  document.querySelectorAll('.chart-scroll-outer').forEach(el => {
+    el.addEventListener('wheel', e => {
+      if (document.activeElement && document.activeElement.type === 'date') return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      const primaryDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!primaryDelta) return;
+      e.preventDefault();
+      el.scrollLeft += primaryDelta * 2.8;
+    }, { passive: false });
+  });
+}
+
+// ── Plugin: Program Year group spans drawn below x-axis ───────────────────────────
+const progYearGroupPlugin = {
+  id: 'progYearGroups',
+  afterDraw(chart) {
+    const months = chart.options.plugins.progYearGroups && chart.options.plugins.progYearGroups.months;
+    if (!months || !months.length) return;
+    const { ctx, chartArea, scales } = chart;
+    const xScale = scales.x;
+
+    const groups = [];
+    months.forEach((m, i) => {
+      const last = groups[groups.length - 1];
+      if (last && last.label === m.progYear) {
+        last.endIdx = i;
+      } else {
+        groups.push({ label: m.progYear || '', startIdx: i, endIdx: i });
+      }
+    });
+
+    const lineY = chartArea.bottom + 30;
+    const bandY = chartArea.bottom + 39;
+
+    ctx.save();
+
+    groups.forEach((g, gi) => {
+      const x1  = xScale.getPixelForValue(g.startIdx);
+      const x2  = xScale.getPixelForValue(g.endIdx);
+      const mid = (x1 + x2) / 2;
+
+      if (gi > 0) {
+        const sepX = (xScale.getPixelForValue(g.startIdx - 1) + x1) / 2;
+        ctx.strokeStyle = 'rgba(139,175,214,0.22)';
+        ctx.lineWidth   = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(sepX, chartArea.top);
+        ctx.lineTo(sepX, chartArea.bottom + 28);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.strokeStyle = 'rgba(139,175,214,0.35)';
+      ctx.lineWidth   = 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, lineY);
+      ctx.lineTo(x2, lineY);
+      ctx.stroke();
+
+      ctx.font          = 'bold 10px Arial';
+      ctx.fillStyle     = 'rgba(198,211,228,0.95)';
+      ctx.textAlign     = 'center';
+      ctx.textBaseline  = 'top';
+      ctx.fillText(g.label, mid, bandY);
+    });
+
+    ctx.restore();
+  }
+};
+
+// ── Plugin: data labels on bars (skip line datasets) ─────────────────────────
+const dataLabelPlugin = {
+  id: 'barDataLabels',
+  afterDatasetsDraw(chart) {
+    const opts = chart.options.plugins.barDataLabels;
+    if (!opts || !opts.show) return;
+    const { ctx, scales } = chart;
+    const yScale = scales.y;
+    const n      = chart.data.labels.length;
+    const skip   = Math.max(1, Math.ceil(n / 20));
+
+    if (opts.showStackSegments) drawStackSegmentLabels(chart);
+
+    if (opts.showStackTotal) {
+      // One label at the top of the full stack
+      const totals = new Array(n).fill(0);
+      chart.data.datasets.forEach(ds => {
+        if (ds.type === 'line') return;
+        ds.data.forEach((v, i) => { totals[i] += (v || 0); });
+      });
+      let lastBarMeta = null;
+      chart.data.datasets.forEach((ds, di) => {
+        if (ds.type !== 'line') lastBarMeta = chart.getDatasetMeta(di);
+      });
+      if (!lastBarMeta) return;
+      for (let i = 0; i < n; i++) {
+        if (i % skip !== 0) continue;
+        const total = totals[i];
+        if (!total) continue;
+        const bar = lastBarMeta.data[i];
+        if (!bar) continue;
+        const { x } = bar.getProps(['x'], true);
+        const y = yScale.getPixelForValue(total);
+        drawBarLabel(ctx, total.toLocaleString(), x, y);
+      }
+    } else {
+      // Per-bar labels for each dataset
+      chart.data.datasets.forEach((ds, di) => {
+        if (ds.type === 'line') return;
+        const meta = chart.getDatasetMeta(di);
+        for (let i = 0; i < n; i++) {
+          if (i % skip !== 0) continue;
+          const value = ds.data[i];
+          if (!value) continue;
+          const bar = meta.data[i];
+          if (!bar) continue;
+          const { x, y } = bar.getProps(['x', 'y'], true);
+          drawBarLabel(ctx, value.toLocaleString(), x, y);
+        }
+      });
+    }
+  }
+};
+
+function drawStackSegmentLabels(chart) {
+  const { ctx } = chart;
+  chart.data.datasets.forEach((ds, di) => {
+    if (ds.type === 'line') return;
+    const meta = chart.getDatasetMeta(di);
+    for (let i = 0; i < chart.data.labels.length; i++) {
+      const value = ds.data[i];
+      if (!value) continue;
+      const bar = meta.data[i];
+      if (!bar) continue;
+      const { x, y, base, width } = bar.getProps(['x', 'y', 'base', 'width'], true);
+      const segmentHeight = Math.abs(base - y);
+      const text = value.toLocaleString();
+      ctx.save();
+      ctx.font = 'bold 11px Arial';
+      const textWidth = ctx.measureText(text).width;
+      ctx.restore();
+      if (segmentHeight < 18 || width < textWidth + 8) continue;
+      drawInsideBarLabel(ctx, text, x, (y + base) / 2);
+    }
+  });
+}
+
+function drawInsideBarLabel(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = 'bold 11px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(7,14,24,0.62)';
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.strokeText(text, x, y);
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawBarLabel(ctx, text, x, y) {
+  ctx.save();
+  ctx.font         = 'bold 12px Arial';
+  ctx.textAlign    = 'center';
+  ctx.textBaseline = 'bottom';
+  const w = ctx.measureText(text).width + 8;
+  const h = 15;
+  ctx.fillStyle = 'rgba(107,0,123,0.28)';
+  const rx = x - w / 2, ry = y - h - 2;
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, w, h, 3);
+    ctx.fill();
+  } else {
+    ctx.fillRect(rx, ry, w, h);
+  }
+  ctx.fillStyle = 'rgba(235,220,240,0.96)';
+  ctx.fillText(text, x, y - 2);
+  ctx.restore();
+}
+
+Chart.register(progYearGroupPlugin, dataLabelPlugin);
+
+// ── Chart defaults ────────────────────────────────────────────────────────────
+Chart.defaults.color       = TICK_COLOR;
+Chart.defaults.font.family = "'Segoe UI', Arial, sans-serif";
+Chart.defaults.font.size   = 11;
+
+function baseScales(months, yTitle) {
+  return {
+    x: {
+      grid:  { color: GRID_COLOR },
+      ticks: {
+        maxRotation: 45,
+        autoSkip:    false,
+        color:       TICK_COLOR,
+        font:        { size: 10 },
+        padding:     6,
+        callback(val) {
+          const i = Math.round(val);
+          return months[i] ? fmtMonthLabel(months[i].monthStart) : '';
+        },
+      },
+    },
+    y: {
+      grid:  { color: GRID_COLOR },
+      title: { display: true, text: yTitle, color: TICK_COLOR, font: { size: 11 } },
+      ticks: { color: TICK_COLOR },
+    },
+  };
+}
+
+function baseOptions(months, yTitle, extraPlugins) {
+  return {
+    responsive:          true,
+    maintainAspectRatio: false,
+    animation:           false,
+    layout:              { padding: { bottom: 48 } },
+    interaction:         { mode: 'index', intersect: false },
+    plugins: {
+      legend:        { labels: { color: TICK_COLOR, boxWidth: 14, font: { size: 11 } } },
+      tooltip: {
+        backgroundColor: 'rgba(12,21,34,0.92)',
+        borderColor:     'rgba(139,175,214,0.3)',
+        borderWidth:     1,
+        titleColor:      '#f1f5fb',
+        bodyColor:       '#b4c0d0',
+      },
+      progYearGroups:   { months },
+      barDataLabels:  { show: true, ...extraPlugins },
+    },
+    scales: baseScales(months, yTitle),
+  };
+}
+
+// ── Chart A: Blockage Location (stacked) ─────────────────────────────────────
+function buildChartLeft(months) {
+  setScrollWidth('chart-inner-left', months.length);
+  const labels   = months.map(r => r.monthStart);
+  const gravData = months.map(r => r.gravityMainCount);
+  const cityData = months.map(r => r.cityServiceLeadCount);
+
+  const opts = baseOptions(months, 'SSO Count', { showStackTotal: true, showStackSegments: true });
+  opts.scales.y.stacked = true;
+  opts.scales.x.stacked = true;
+
+  if (chartLeft) chartLeft.destroy();
+  chartLeft = new Chart(document.getElementById('chart-blockage'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Gravity Main',      data: gravData, backgroundColor: COLOR_GRAV_MAIN, stack: 'loc', borderRadius: 2 },
+        { label: 'City Service Lead', data: cityData, backgroundColor: COLOR_CITY_LEAD, stack: 'loc', borderRadius: 2 },
+      ],
+    },
+    options: opts,
+  });
+}
+
+// ── Chart B: Cause Category (clustered) + 2 MA lines ─────────────────────────
+function buildChartRight(months) {
+  setScrollWidth('chart-inner-right', months.length);
+  const labels    = months.map(r => r.monthStart);
+  const grease    = months.map(r => r.greaseRagWipeCount);
+  const struct    = months.map(r => r.structuralCount);
+  const others    = months.map(r => r.othersCount);
+  const structMA  = months.map(r => r.structuralMovingAvg);
+  const greaseMA  = months.map(r => r.greaseRagWipeMovingAvg);
+
+  if (chartRight) chartRight.destroy();
+  chartRight = new Chart(document.getElementById('chart-cause'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          type: 'bar', label: 'Grease/Rag/Wipe',
+          data: grease, backgroundColor: COLOR_GREASE, borderRadius: 2, order: 5,
+        },
+        {
+          type: 'bar', label: 'Structural',
+          data: struct, backgroundColor: COLOR_STRUCTURAL, borderRadius: 2, order: 4,
+        },
+        {
+          type: 'bar', label: 'Others',
+          data: others, backgroundColor: COLOR_OTHERS, borderRadius: 2, order: 3,
+        },
+        {
+          type: 'line', label: 'Structural 12M MA',
+          data: structMA, borderColor: COLOR_STRUCT_MA,
+          backgroundColor: 'transparent', borderWidth: 3,
+          borderDash: [5, 4], pointRadius: 0, tension: 0.4,
+          spanGaps: false, order: 2,
+        },
+        {
+          type: 'line', label: 'Grease/Rag/Wipe 12M MA',
+          data: greaseMA, borderColor: COLOR_GREASE_MA,
+          backgroundColor: 'transparent', borderWidth: 3,
+          borderDash: [5, 4], pointRadius: 0, tension: 0.4,
+          spanGaps: false, order: 1,
+        },
+      ],
+    },
+    options: baseOptions(months, 'SSO Count', { showStackTotal: false }),
+  });
+}
+
+// ── Left table: Program Year × Gravity Main summary ────────────────────────────────
+function buildLeftTable(months) {
+  const byYear = {};
+  months.forEach(r => {
+    const y = r.progYear;
+    if (!y) return;
+    if (!byYear[y]) byYear[y] = { total: 0, grav: 0, progYearNo: r.progYearNo };
+    byYear[y].total += r.gravityMainCount + r.cityServiceLeadCount;
+    byYear[y].grav  += r.gravityMainCount;
+  });
+
+  const yearKeys = Object.keys(byYear).sort((a, b) => byYear[a].progYearNo - byYear[b].progYearNo);
+  const tbody    = document.getElementById('left-table-body');
+  tbody.innerHTML = '';
+
+  yearKeys.forEach(year => {
+    const { total, grav } = byYear[year];
+    const pct = total > 0 ? grav / total : null;
+    const tr  = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="row-label">${year}</td>
+      <td>${total.toLocaleString()}</td>
+      <td>${grav.toLocaleString()}</td>
+      <td>${fmtPct(pct)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Right table: Program Year × Cause Category breakdown ──────────────────────────
+function buildRightTable(months) {
+  const byYear = {};
+  months.forEach(r => {
+    const y = r.progYear;
+    if (!y) return;
+    if (!byYear[y]) byYear[y] = { grease: 0, struct: 0, others: 0, progYearNo: r.progYearNo };
+    byYear[y].grease += r.greaseRagWipeCount;
+    byYear[y].struct += r.structuralCount;
+    byYear[y].others += r.othersCount;
+  });
+
+  const yearKeys = Object.keys(byYear).sort((a, b) => byYear[a].progYearNo - byYear[b].progYearNo);
+  const tbody    = document.getElementById('right-table-body');
+  tbody.innerHTML = '';
+
+  yearKeys.forEach(year => {
+    const { grease, struct, others } = byYear[year];
+    const total  = grease + struct + others;
+    const pctGr  = total > 0 ? grease / total : null;
+    const pctSt  = total > 0 ? struct / total : null;
+    const pctOt  = total > 0 ? others / total : null;
+    const tr     = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="row-label">${year}</td>
+      <td>${grease.toLocaleString()}</td>
+      <td class="pct-cell">${fmtPct(pctGr)}</td>
+      <td>${struct.toLocaleString()}</td>
+      <td class="pct-cell">${fmtPct(pctSt)}</td>
+      <td>${others.toLocaleString()}</td>
+      <td class="pct-cell">${fmtPct(pctOt)}</td>
+      <td>${total.toLocaleString()}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Slicer summary ────────────────────────────────────────────────────────────
+function updateSummary(months) {
+  const total = months.reduce((s, r) => s + r.gravityMainCount + r.cityServiceLeadCount, 0);
+  document.getElementById('slicer-summary').textContent =
+    `${months.length} months · ${total.toLocaleString()} public SSO events (blockage filter)`;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  const months = filteredCauseMonths();
+  buildChartLeft(months);
+  buildChartRight(months);
+  buildLeftTable(months);
+  buildRightTable(months);
+  updateSummary(months);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  const allMonths  = window.DATA.causeTrendByMonth;
+  const earliest   = allMonths[0].monthStart;
+  const latest     = allMonths[allMonths.length - 1].monthStart;
+  const latestDate = parseLocalDate(latest);
+
+  // Default: last 19 months
+  const defaultStart    = new Date(latestDate.getFullYear(), latestDate.getMonth() - 18, 1);
+  const defaultStartStr = toInputVal(defaultStart);
+
+  document.getElementById('slicer-start').value = defaultStartStr;
+  document.getElementById('slicer-start').min   = earliest;
+  document.getElementById('slicer-start').max   = latest;
+  document.getElementById('slicer-end').value   = latest;
+  document.getElementById('slicer-end').min     = defaultStartStr;
+  document.getElementById('slicer-end').max     = latest;
+
+  startDate = defaultStart;
+  endDate   = latestDate;
+
+  document.getElementById('slicer-start').addEventListener('change', e => {
+    startDate = e.target.value ? parseLocalDate(e.target.value) : defaultStart;
+    if (startDate > endDate) {
+      endDate = startDate;
+      document.getElementById('slicer-end').value = toInputVal(endDate);
+    }
+    document.getElementById('slicer-end').min = toInputVal(startDate);
+    render();
+  });
+  document.getElementById('slicer-end').addEventListener('change', e => {
+    endDate = e.target.value ? parseLocalDate(e.target.value) : latestDate;
+    if (endDate < startDate) {
+      startDate = endDate;
+      document.getElementById('slicer-start').value = toInputVal(startDate);
+    }
+    document.getElementById('slicer-start').max = toInputVal(endDate);
+    render();
+  });
+
+  enhanceChartScrolling();
+  render();
+}
+
+init();
+</script>
+</body>
+</html>

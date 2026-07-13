@@ -1,0 +1,803 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Capacity Reservation Tracking - Home</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="assets/leaflet/leaflet.min.css">
+<style>
+html,body{height:100%;overflow:hidden;margin:0;min-width:0}
+.page-body{height:calc(100vh - 142px);overflow:hidden;display:flex;flex-direction:column;padding:8px}
+
+/* 3-column outer grid */
+.main-grid{
+  display:grid;
+  grid-template-columns:minmax(280px,34fr) minmax(360px,47fr) minmax(220px,19fr);
+  gap:8px;flex:1;min-height:0
+}
+.col{display:flex;flex-direction:column;gap:8px;min-height:0;min-width:0}
+
+/* Center column: bar chart on top, then map+slicer row below */
+.center-top{flex:264;min-height:0}
+.center-bottom{flex:392;min-height:0;display:flex;gap:8px}
+.center-bottom .map-panel{flex:2.5;min-height:0;border-radius:10px;overflow:hidden;border:1px solid var(--border)}
+.center-bottom .slicer-col{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
+
+.panel{
+  background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+  border:1px solid var(--border);border-radius:10px;
+  min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:8px
+}
+.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:6px;flex-shrink:0}
+
+canvas{display:block}
+.chart-wrap{flex:1;min-height:0;position:relative}
+#map{width:100%;height:100%}
+
+/* table */
+.tbl-wrap{flex:1;overflow-y:auto;min-height:0}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{position:sticky;top:0;background:#1b2a3d;color:var(--muted);font-weight:600;
+  padding:5px 6px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border)}
+thead th.sortable{cursor:pointer;user-select:none}
+thead th.sortable:hover{color:var(--text)}
+tbody tr{border-bottom:1px solid rgba(139,175,214,.08)}
+tbody tr:hover{background:rgba(93,168,255,.07)}
+tbody td{padding:4px 6px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:160px}
+
+/* ── KPI panel - full-height unified ───────────────── */
+.kpi-panel{
+  flex:1;padding:12px;gap:10px;min-height:0;
+  background:
+    radial-gradient(circle at 18% 8%,rgba(230,165,46,.13),transparent 32%),
+    radial-gradient(circle at 88% 14%,rgba(65,185,168,.14),transparent 30%),
+    linear-gradient(180deg,rgba(27,42,61,.98),rgba(16,29,45,.98))
+}
+.status-head-row{display:grid;grid-template-columns:1fr 1fr;gap:8px;flex-shrink:0}
+.status-head{
+  min-width:0;padding:8px 8px 9px;text-align:left;border:1px solid rgba(139,175,214,.14);
+  border-radius:8px;background:rgba(8,18,31,.32)
+}
+.sh-label{font-size:9px;font-weight:800;letter-spacing:.1em;text-transform:uppercase;margin-bottom:7px}
+.sh-stripe{height:4px;border-radius:2px;width:44px;box-shadow:0 0 14px currentColor}
+.divider-v{display:none}
+.metric-row{
+  display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:8px;flex:1;min-height:0;
+  padding:10px 8px;border:1px solid rgba(139,175,214,.13);border-radius:8px;
+  background:linear-gradient(180deg,rgba(12,27,43,.42),rgba(10,22,36,.22));
+  align-items:center
+}
+.metric-cell{
+  min-width:0;text-align:left;padding:0;display:flex;flex-direction:column;
+  align-items:stretch;justify-content:center;height:100%
+}
+.metric-val{
+  font-size:21px;font-weight:800;line-height:1;white-space:nowrap;
+  font-variant-numeric:tabular-nums;letter-spacing:0
+}
+.metric-sub{font-size:8.5px;color:var(--muted);letter-spacing:.04em;margin-top:8px;text-transform:uppercase;white-space:nowrap}
+.np{color:#e6a52e} .pd{color:#41b9a8} .mgd-val{font-size:18px}
+.prop-track{height:6px;background:rgba(255,255,255,.08);border-radius:4px;margin:8px 0 0;width:100%;overflow:hidden}
+.prop-fill{height:100%;border-radius:4px;box-shadow:0 0 12px currentColor}
+.slicer-footer{
+  flex-shrink:0;border:1px solid rgba(139,175,214,.13);border-radius:8px;
+  padding:10px 8px;background:rgba(8,18,31,.28)
+}
+.slicer-foot-lbl{font-size:8.5px;font-weight:800;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:4px;padding:0 2px}
+
+/* slicers */
+.slicer-scroll{flex:1;overflow-y:auto;min-height:0}
+.slicer-item{display:flex;align-items:center;gap:6px;padding:3px 4px;cursor:pointer;
+  border-radius:5px;font-size:11px;list-style:none}
+.slicer-item:hover{background:rgba(93,168,255,.1)}
+.slicer-item input{accent-color:#5da8ff;pointer-events:none;flex-shrink:0}
+.slicer-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* dropdown */
+.dd-wrap{position:relative}
+.dd-btn{width:100%;height:28px;background:#102032;border:1px solid rgba(108,143,186,.36);
+  border-radius:7px;color:var(--text);font:inherit;font-size:10px;padding:0 8px;
+  text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between}
+.dd-list{display:none;position:fixed;z-index:9999;
+  background:#1b2a3d;border:1px solid var(--border);border-radius:8px;
+  overflow:hidden;flex-direction:column}
+.dd-list.open{display:flex}
+.dd-search{position:sticky;top:0;padding:5px 7px;background:#1b2a3d;border-bottom:1px solid var(--border);flex-shrink:0}
+.dd-search input{width:100%;box-sizing:border-box;background:#0d1e2e;
+  border:1px solid rgba(108,143,186,.3);border-radius:5px;
+  color:var(--text);font-size:10px;padding:3px 7px;outline:none}
+.dd-items{overflow-y:auto;max-height:140px}
+.dd-item{display:flex;align-items:center;gap:6px;padding:4px 8px;font-size:10px;cursor:pointer}
+.dd-item:hover{background:rgba(93,168,255,.1)}
+.dd-item input{accent-color:#5da8ff;pointer-events:none}
+/* click-filter */
+tbody tr{cursor:pointer}
+tbody tr.row-sel{background:rgba(62,199,194,.15);border-left:3px solid #3ec7c2}
+.cf-badge{display:none;height:28px;padding:0 11px;border-radius:7px;
+  border:1px solid rgba(62,199,194,.4);background:rgba(62,199,194,.12);
+  color:#3ec7c2;font-size:10px;font-weight:700;cursor:pointer;align-items:center;gap:5px;white-space:nowrap}
+.cf-badge.on{display:inline-flex}.cf-badge:hover{background:rgba(62,199,194,.25)}
+/* wwtp select-all row */
+.wwtp-all-row{display:flex;align-items:center;justify-content:space-between;
+  padding:2px 0 5px;border-bottom:1px solid rgba(139,175,214,.15);margin-bottom:3px;flex-shrink:0}
+.wwtp-all-row span{font-size:9px;cursor:pointer;color:#5da8ff}
+.wwtp-all-row span:hover{color:#fff}
+
+/* buttons */
+.reset-btn{display:inline-flex;align-items:center;justify-content:center;width:auto;height:28px;margin-top:0;
+  padding:0 13px;border-radius:7px;border:1px solid rgba(108,143,186,.3);
+  background:rgba(94,127,168,.15);color:var(--muted);font-size:10px;cursor:pointer;line-height:1}
+.reset-btn:hover{background:rgba(94,127,168,.28);color:var(--text)}
+.refresh-badge{display:inline-flex;align-items:center;height:28px;padding:0 10px;gap:6px;
+  border-radius:6px;border:1px solid rgba(108,143,186,.25);background:rgba(94,127,168,.1);
+  color:var(--muted);font-size:10px;white-space:nowrap;cursor:default;flex-shrink:0}
+.topbar-status{display:flex;align-items:center;gap:8px;flex-shrink:0;align-self:center}
+</style>
+</head>
+<body>
+
+<!-- ── Topbar ─────────────────────────────────────────────────────── -->
+<div class="topbar" style="padding:10px 18px 9px;gap:14px">
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <div>
+      <div style="font-size:16px;font-weight:700;line-height:1.2">Wastewater Capacity Reservation Tracking</div>
+      <div style="font-size:9.5px;color:var(--muted)">Synthetic sample data</div>
+    </div>
+  </div>
+  <div class="topbar-status">
+    <button class="cf-badge" id="cf-badge" onclick="clearClickFilter()">× Clear Selection</button>
+    <span class="refresh-badge">⟳ <span id="refresh-lbl">-</span></span>
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+  </div>
+</div>
+
+<!-- ── Subtabs ─────────────────────────────────────────────────────── -->
+<div class="subtabs" style="padding:0 18px 9px">
+  <button class="subtab active">HOME</button>
+  <button class="subtab" onclick="location.href='significant-wcrs.html'">Significant WCRs</button>
+</div>
+
+<!-- ── Page body ───────────────────────────────────────────────────── -->
+<div class="page-body">
+<div class="main-grid">
+
+  <!-- ── Col 1: Donut + Table ──────────────────────────────────────── -->
+  <div class="col">
+    <div class="panel" style="flex:264">
+      <div class="panel-title">WWESU by WCR Category</div>
+      <div class="chart-wrap"><canvas id="donutChart"></canvas></div>
+    </div>
+    <div class="panel" style="flex:392">
+      <div class="panel-title">WCR Records</div>
+      <div class="tbl-wrap">
+        <table>
+          <thead><tr>
+            <th style="width:58px">Record No</th>
+            <th class="sortable" style="width:86px" onclick="sortTableBy('RESPOND_DT')">Respond Date<span id="sort-RESPOND_DT"></span></th>
+            <th class="sortable" style="width:62px" onclick="sortTableBy('WWSERVICEU')">WWESU<span id="sort-WWSERVICEU"></span></th>
+            <th>Address</th>
+          </tr></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Col 2: Bar chart (top) + Map & Slicers (bottom) ───────────── -->
+  <div class="col">
+    <div class="panel center-top">
+      <div class="panel-title">WWESU by Year &amp; WCR Category</div>
+      <div class="chart-wrap"><canvas id="barChart"></canvas></div>
+    </div>
+    <div class="center-bottom">
+      <!-- Map -->
+      <div class="map-panel">
+        <div id="map"></div>
+      </div>
+      <!-- Slicer sub-column -->
+      <div class="slicer-col">
+        <div class="panel" style="flex:0 0 auto">
+          <div class="panel-title">Meter Basin</div>
+          <div class="dd-wrap">
+            <button class="dd-btn" id="dd-btn" onclick="toggleDD()">
+              <span id="dd-label">All</span><span>▾</span>
+            </button>
+            <div class="dd-list" id="dd-list"></div>
+          </div>
+        </div>
+        <div class="panel" style="flex:1">
+          <div class="panel-title">WWTP</div>
+          <div class="wwtp-all-row">
+            <span id="wwtp-count-lbl" style="font-size:9px;color:var(--muted)"></span>
+            <span id="wwtp-all-btn" onclick="toggleAllWWTP()">Select All</span>
+          </div>
+          <div class="slicer-scroll" id="wwtp-list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── Col 3: unified KPI + slicer panel ────────────────────────── -->
+  <div class="col">
+    <div class="panel kpi-panel">
+
+      <!-- Header row -->
+      <div class="status-head-row">
+        <div class="status-head">
+          <div class="sh-label np">Not Paid</div>
+          <div class="sh-stripe" style="background:#e6a52e"></div>
+        </div>
+        <div class="divider-v"></div>
+        <div class="status-head">
+          <div class="sh-label pd">Paid</div>
+          <div class="sh-stripe" style="background:#41b9a8"></div>
+        </div>
+      </div>
+
+      <!-- Count row -->
+      <div class="metric-row">
+        <div class="metric-cell">
+          <div class="metric-val np" id="kpi-np-count">-</div>
+          <div class="prop-track"><div class="prop-fill" id="bar-np-count" style="background:#e6a52e"></div></div>
+          <div class="metric-sub">WCRs Count</div>
+        </div>
+        <div class="divider-v"></div>
+        <div class="metric-cell">
+          <div class="metric-val pd" id="kpi-p-count">-</div>
+          <div class="prop-track"><div class="prop-fill" id="bar-p-count" style="background:#41b9a8"></div></div>
+          <div class="metric-sub">WCRs Count</div>
+        </div>
+      </div>
+
+      <!-- ESU row -->
+      <div class="metric-row">
+        <div class="metric-cell">
+          <div class="metric-val np" id="kpi-np-esu">-</div>
+          <div class="prop-track"><div class="prop-fill" id="bar-np-esu" style="background:#e6a52e"></div></div>
+          <div class="metric-sub">WWESU</div>
+        </div>
+        <div class="divider-v"></div>
+        <div class="metric-cell">
+          <div class="metric-val pd" id="kpi-p-esu">-</div>
+          <div class="prop-track"><div class="prop-fill" id="bar-p-esu" style="background:#41b9a8"></div></div>
+          <div class="metric-sub">WWESU</div>
+        </div>
+      </div>
+
+      <!-- Net MGD row -->
+      <div class="metric-row">
+        <div class="metric-cell">
+          <div class="metric-val np mgd-val" id="kpi-np-mgd">-</div>
+          <div class="prop-track"><div class="prop-fill" id="bar-np-mgd" style="background:#e6a52e"></div></div>
+          <div class="metric-sub">Net Addl MGD</div>
+        </div>
+        <div class="divider-v"></div>
+        <div class="metric-cell">
+          <div class="metric-val pd mgd-val" id="kpi-p-mgd">-</div>
+          <div class="prop-track"><div class="prop-fill" id="bar-p-mgd" style="background:#41b9a8"></div></div>
+          <div class="metric-sub">Net Addl MGD</div>
+        </div>
+      </div>
+
+      <!-- Slicer footer -->
+      <div class="slicer-footer">
+        <div class="slicer-foot-lbl">Paid Status</div>
+        <ul id="paid-list" style="margin:0 0 10px;padding:0"></ul>
+        <div class="slicer-foot-lbl">WCR Category</div>
+        <ul id="cat-list" style="margin:0;padding:0"></ul>
+      </div>
+
+    </div>
+  </div><!-- col 3 -->
+</div><!-- main-grid -->
+</div><!-- page-body -->
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="assets/leaflet/leaflet.min.js"></script>
+<script src="data.js"></script>
+<script>
+const WCR_COLORS = {Major:'#0f8a24', Minor:'#e66c37', Small:'#9ea8d9'};
+const EXCLUDED_SERVICE_AR = new Set(['Unassigned']);
+
+// Build unique WWTP list dynamically from data (strip trailing spaces, deduplicate)
+const wwtpVals = [...new Set(
+  window.DATA_ROWS
+    .filter(r => !EXCLUDED_SERVICE_AR.has(r.SERVICE_AR?.trim()))
+    .map(r => r.WWTPSA_Final?.trim())
+    .filter(Boolean)
+)].sort();
+
+let activeMeterBasin = null;   // null = all; Set = filter to those values
+let activeWWTP       = null;   // null = all; Set = filter to those values
+let activePAID       = new Set(['NO','YES']);
+let activeCat        = new Set(['Major','Minor','Small']);
+let ddOpen           = false;
+let tableSortCol     = null;
+let tableSortDir     = -1; // -1 = descending, 1 = ascending
+
+// ── Click-filter state (multi-select) ──────────────────────────────
+// type: 'wcr_cat' | 'bar' | 'row' | null
+// Each type has its own Set of selected keys.
+// Clicking within the same type toggles. Clicking a different type clears and starts fresh.
+let CF = { type:null, wcr_cats:new Set(), bars:new Set(), projectnums:new Set() };
+
+function cfActive(){ return CF.type!==null&&(CF.wcr_cats.size||CF.bars.size||CF.projectnums.size)>0; }
+
+function toggleClick(type, key){
+  if(CF.type!==null&&CF.type!==type){
+    // Switch type: clear previous, start fresh
+    CF={type,wcr_cats:new Set(),bars:new Set(),projectnums:new Set()};
+  }
+  CF.type=type;
+  const s=type==='wcr_cat'?CF.wcr_cats:type==='bar'?CF.bars:CF.projectnums;
+  if(s.has(key)) s.delete(key); else s.add(key);
+  if(s.size===0) CF.type=null;
+  renderAll();
+}
+
+function clearClickFilter(){
+  CF={type:null,wcr_cats:new Set(),bars:new Set(),projectnums:new Set()};
+  renderAll();
+}
+
+function updateCFBadge(){
+  const b=document.getElementById('cf-badge'); if(!b)return;
+  const on=cfActive(); b.classList.toggle('on',on);
+  if(!on)return;
+  if(CF.type==='wcr_cat') b.textContent=`× ${[...CF.wcr_cats].join(', ')}`;
+  else if(CF.type==='bar') b.textContent=`× ${CF.bars.size} bar${CF.bars.size>1?'s':''} selected`;
+  else b.textContent=`× ${CF.projectnums.size} row${CF.projectnums.size>1?'s':''} selected`;
+}
+
+// ── Filter ──────────────────────────────────────────────────────────
+// slicerRows: slicer filters only (charts cross-highlight from this)
+// applyClick:  narrows slicerRows for map / KPIs
+// Table always uses slicerRows - rows just get highlighted, never removed
+function slicerRows(){
+  return window.DATA_ROWS.filter(r=>{
+    if(activePAID.size<2&&!activePAID.has(r.PAID)) return false;
+    if(activeCat.size<3&&!activeCat.has(r.WCR_Cat)) return false;
+    if(activeMeterBasin!==null&&!activeMeterBasin.has(r.METERBASIN?.trim())) return false;
+    if(activeWWTP!==null&&!activeWWTP.has(r.WWTPSA_Final?.trim())) return false;
+    return true;
+  });
+}
+function applyClick(rows){
+  if(!cfActive()) return rows;
+  if(CF.type==='wcr_cat') return rows.filter(r=>CF.wcr_cats.has(r.WCR_Cat));
+  if(CF.type==='bar')     return rows.filter(r=>CF.bars.has(`${r.RESPOND_DT?.slice(0,4)}|${r.WCR_Cat}`));
+  if(CF.type==='row')     return rows.filter(r=>CF.projectnums.has(r.PROJECTNUM));
+  return rows;
+}
+function filterRows(){ return applyClick(slicerRows()); }
+
+// ── KPI + proportion bars ───────────────────────────────────────────
+function setProp(barId, val, total) {
+  const pct = total > 0 ? Math.round((val/total)*100) : 0;
+  document.getElementById(barId).style.width = pct + '%';
+}
+function updateKPIs(rows) {
+  let npCnt=0,npESU=0,npMGD=0,pCnt=0,pESU=0,pMGD=0;
+  for (const r of rows) {
+    const esu=r.WWSERVICEU||0, mgd=r.Net_Addl_MGD||0;
+    if (r.PAID==='NO')  { npCnt++; npESU+=esu; npMGD+=mgd; }
+    if (r.PAID==='YES') { pCnt++;  pESU+=esu;  pMGD+=mgd;  }
+  }
+  document.getElementById('kpi-np-count').textContent = npCnt.toLocaleString();
+  document.getElementById('kpi-p-count').textContent  = pCnt.toLocaleString();
+  document.getElementById('kpi-np-esu').textContent   = Math.round(npESU).toLocaleString();
+  document.getElementById('kpi-p-esu').textContent    = Math.round(pESU).toLocaleString();
+  document.getElementById('kpi-np-mgd').textContent   = npMGD.toFixed(2);
+  document.getElementById('kpi-p-mgd').textContent    = pMGD.toFixed(2);
+  const totCnt=npCnt+pCnt, totESU=npESU+pESU, totMGD=npMGD+pMGD;
+  setProp('bar-np-count', npCnt, totCnt); setProp('bar-p-count', pCnt, totCnt);
+  setProp('bar-np-esu',   npESU, totESU); setProp('bar-p-esu',   pESU, totESU);
+  setProp('bar-np-mgd',   npMGD, totMGD); setProp('bar-p-mgd',   pMGD, totMGD);
+}
+
+// ── Table - always shows all slicer rows; click highlights without removing rows
+function sortTableBy(col) {
+  if(tableSortCol===col) tableSortDir*=-1;
+  else {
+    tableSortCol=col;
+    tableSortDir=-1;
+  }
+  updateTableSortIcons();
+  renderAll();
+}
+
+function updateTableSortIcons() {
+  ['RESPOND_DT','WWSERVICEU'].forEach(c=>{
+    const el=document.getElementById('sort-'+c);
+    if(!el) return;
+    el.textContent=tableSortCol===c ? (tableSortDir===-1 ? ' v' : ' ^') : '';
+  });
+}
+
+function sortedTableRows(rows) {
+  if(!tableSortCol) return rows;
+  return [...rows].sort((a,b)=>{
+    const av=tableSortCol==='WWSERVICEU' ? (Number(a.WWSERVICEU)||0) : (a.RESPOND_DT||'');
+    const bv=tableSortCol==='WWSERVICEU' ? (Number(b.WWSERVICEU)||0) : (b.RESPOND_DT||'');
+    if(av<bv) return -tableSortDir;
+    if(av>bv) return tableSortDir;
+    const ad=a.RESPOND_DT||'', bd=b.RESPOND_DT||'';
+    if(ad!==bd) return ad<bd ? 1 : -1;
+    return (Number(b.WWSERVICEU)||0)-(Number(a.WWSERVICEU)||0);
+  });
+}
+
+function updateTable(rows) {
+  const tbody=document.getElementById('tbl-body');
+  tbody.innerHTML='';
+  sortedTableRows(rows).slice(0,300).forEach(r=>{
+    const tr=document.createElement('tr');
+    if(CF.type==='row'&&CF.projectnums.has(r.PROJECTNUM)) tr.className='row-sel';
+    tr.innerHTML=`<td>${r.PROJECTNUM||''}</td><td>${r.RESPOND_DT||''}</td>`+
+      `<td>${(r.WWSERVICEU||0).toLocaleString()}</td>`+
+      `<td title="${r.ADDRESS||''}">${r.ADDRESS||''}</td>`;
+    tr.addEventListener('click',()=>toggleClick('row',r.PROJECTNUM));
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Donut ───────────────────────────────────────────────────────────
+const donutCenterPlugin = {
+  id:'donutCenter',
+  beforeDraw(chart){
+    const {ctx,chartArea:{left,right,top,bottom}}=chart;
+    const cx=(left+right)/2, cy=(top+bottom)/2;
+    const total=chart.data.datasets[0].data.reduce((a,b)=>a+b,0);
+    ctx.save();
+    ctx.textAlign='center'; ctx.textBaseline='middle';
+    ctx.fillStyle='#f1f5fb';
+    ctx.font='bold 13px sans-serif';
+    ctx.fillText(total.toLocaleString(),cx,cy-7);
+    ctx.font='8px sans-serif';
+    ctx.fillStyle='#8baed6';
+    ctx.fillText('Total ESU',cx,cy+8);
+    ctx.restore();
+  }
+};
+const donutLabelPlugin = {
+  id:'donutLabel',
+  afterDatasetsDraw(chart){
+    const {ctx,data}=chart;
+    const meta=chart.getDatasetMeta(0);
+    meta.data.forEach((arc,i)=>{
+      const val=data.datasets[0].data[i];
+      if(!val||val===0)return;
+      const {x,y}=arc.tooltipPosition();
+      ctx.save();
+      ctx.fillStyle='#fff';
+      ctx.font='bold 10px sans-serif';
+      ctx.textAlign='center';
+      ctx.textBaseline='middle';
+      ctx.shadowColor='rgba(0,0,0,.6)';
+      ctx.shadowBlur=3;
+      ctx.fillText(val.toLocaleString(),x,y);
+      ctx.restore();
+    });
+  }
+};
+
+let donutInst=null;
+function updateDonut(rows) {
+  const agg={Major:0,Minor:0,Small:0};
+  for (const r of rows) if (r.WCR_Cat) agg[r.WCR_Cat]+=(r.WWSERVICEU||0);
+  const labels=Object.keys(agg), data=labels.map(k=>Math.round(agg[k]));
+  // Cross-highlight: dim non-selected slices
+  const bgColors=labels.map(k=>{
+    if(!cfActive()||CF.type==='row') return WCR_COLORS[k];
+    const sel=(CF.type==='wcr_cat'&&CF.wcr_cats.has(k))||(CF.type==='bar'&&[...CF.bars].some(b=>b.split('|')[1]===k));
+    return sel ? WCR_COLORS[k] : WCR_COLORS[k]+'44';
+  });
+  if (donutInst) { donutInst.destroy(); donutInst=null; }
+  donutInst = new Chart(document.getElementById('donutChart').getContext('2d'), {
+    type:'doughnut',
+    data:{labels, datasets:[{data, backgroundColor:bgColors, borderWidth:1, borderColor:'#1b2a3d'}]},
+    options:{
+      animation:false,
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'top', labels:{color:'#b4c0d0', font:{size:10}, boxWidth:11}},
+        tooltip:{callbacks:{label:c=>`${c.label}: ${c.raw.toLocaleString()} ESU`}}
+      },
+      onClick(e, elements){
+        if(!elements.length){ if(CF.type==='wcr_cat') clearClickFilter(); return; }
+        toggleClick('wcr_cat', labels[elements[0].index]);
+      }
+    },
+    plugins:[donutCenterPlugin,donutLabelPlugin]
+  });
+}
+
+// ── Bar chart ───────────────────────────────────────────────────────
+let barInst=null;
+const topLabelPlugin = {
+  id:'topLabel',
+  afterDatasetsDraw(chart) {
+    const ctx=chart.ctx;
+    chart.data.labels.forEach((_,i)=>{
+      let maxV=0, maxBar=null;
+      chart.data.datasets.forEach((_ds,di)=>{
+        const meta=chart.getDatasetMeta(di), bar=meta.data[i], v=chart.data.datasets[di].data[i]||0;
+        if(v>maxV){maxV=v;maxBar=bar;}
+      });
+      if(!maxBar||maxV===0)return;
+      ctx.fillStyle='#cdd8e6'; ctx.font='700 8px sans-serif'; ctx.textAlign='center';
+      ctx.fillText(maxV.toLocaleString(),maxBar.x,maxBar.y-3);
+    });
+  }
+};
+function updateBar(rows) {
+  const byYC={};
+  for(const r of rows){
+    if(!r.RESPOND_DT)continue;
+    const yr=r.RESPOND_DT.slice(0,4);
+    if(!byYC[yr])byYC[yr]={Major:0,Minor:0,Small:0};
+    byYC[yr][r.WCR_Cat||'Small']+=(r.WWSERVICEU||0);
+  }
+  const years=Object.keys(byYC).sort();
+  const datasets=['Major','Minor','Small'].map((cat)=>({
+    label:cat,
+    data:years.map(y=>Math.round(byYC[y][cat]||0)),
+    backgroundColor:years.map(y=>{
+      if(!cfActive()||CF.type==='row') return WCR_COLORS[cat];
+      if(CF.type==='wcr_cat') return CF.wcr_cats.has(cat)?WCR_COLORS[cat]:WCR_COLORS[cat]+'44';
+      if(CF.type==='bar') return CF.bars.has(`${y}|${cat}`)?WCR_COLORS[cat]:WCR_COLORS[cat]+'44';
+      return WCR_COLORS[cat];
+    }),
+    borderWidth:0
+  }));
+  if(barInst){barInst.destroy();barInst=null;}
+  barInst=new Chart(document.getElementById('barChart').getContext('2d'),{
+    type:'bar', data:{labels:years,datasets},
+    options:{
+      animation:false,
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{position:'top',labels:{color:'#b4c0d0',font:{size:10},boxWidth:11}},
+        tooltip:{mode:'index',intersect:false}
+      },
+      scales:{
+        x:{ticks:{color:'#b4c0d0',font:{size:9}},grid:{color:'rgba(139,175,214,.08)'}},
+        y:{display:false,grid:{display:false}}
+      },
+      barPercentage:0.82, categoryPercentage:0.72,
+      onClick(e,elements){
+        if(!elements.length){ if(CF.type==='bar') clearClickFilter(); return; }
+        const el=elements[0];
+        const cat=['Major','Minor','Small'][el.datasetIndex];
+        const yr=years[el.index];
+        toggleClick('bar',`${yr}|${cat}`);
+      }
+    },
+    plugins:[topLabelPlugin]
+  });
+}
+
+// ── Map ─────────────────────────────────────────────────────────────
+let mapInst=null,layerGroup=null;
+function initMap(){
+  try{
+    mapInst=L.map('map',{zoomControl:true}).setView([29.76,-95.37],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+      {attribution:'© OpenStreetMap contributors',maxZoom:18}).addTo(mapInst);
+    layerGroup=L.layerGroup().addTo(mapInst);
+    mapInst.on('click',()=>{ if(CF.type==='row') clearClickFilter(); });
+  }catch(e){
+    document.getElementById('map').innerHTML=`<div style="padding:16px;color:#b4c0d0">Map unavailable: ${e.message}</div>`;
+  }
+}
+function updateMap(rows){
+  if(!layerGroup)return;
+  layerGroup.clearLayers();
+  let n=0, selLat=null, selLon=null, selCount=0;
+  for(const r of rows){
+    const lat=parseFloat(r.LATITUDE),lon=parseFloat(r.LONGITUDE);
+    if(!lat||!lon||lat<25||lat>35||lon<-100||lon>-90)continue;
+    const isSel=CF.type==='row'&&CF.projectnums.has(r.PROJECTNUM);
+    if(isSel){selLat=lat;selLon=lon;selCount++;}
+    const circle=L.circleMarker([lat,lon],{
+      radius:isSel?9:4,
+      fillColor:WCR_COLORS[r.WCR_Cat]||'#888',
+      color:isSel?'#fff':'#111', weight:isSel?2:0.4,
+      fillOpacity:isSel?1:0.8
+    });
+    circle.bindPopup(
+      `<b>${r.ADDRESS||'-'}</b><br>Record: ${r.PROJECTNUM||'-'}<br>`+
+      `Date: ${r.RESPOND_DT||'-'}<br>WWESU: ${(r.WWSERVICEU||0).toLocaleString()}<br>`+
+      `Category: ${r.WCR_Cat||'-'} · PAID: ${r.PAID||'-'}`
+    );
+    circle.on('click',e=>{
+      L.DomEvent.stopPropagation(e);
+      toggleClick('row',r.PROJECTNUM);
+    });
+    layerGroup.addLayer(circle);
+    if(++n>=5000)break;
+  }
+  // Zoom only when exactly one row is selected
+  if(selCount===1&&selLat&&selLon) mapInst.setView([selLat,selLon],15);
+}
+
+// ── Slicers ─────────────────────────────────────────────────────────
+function buildSlicer(containerId, values, activeSet, colorMap){
+  const el=document.getElementById(containerId);
+  el.innerHTML='';
+  values.forEach(v=>{
+    const li=document.createElement('li');
+    li.className='slicer-item'; li.dataset.val=v;
+    const dot=colorMap?`<span style="width:8px;height:8px;border-radius:50%;flex-shrink:0;background:${colorMap[v]};display:inline-block"></span>`:'';
+    li.innerHTML=`<input type="checkbox" ${activeSet.has(v)?'checked':''}>${dot}<span>${v}</span>`;
+    li.addEventListener('click',e=>{
+      e.preventDefault();
+      if(activeSet.has(v))activeSet.delete(v); else activeSet.add(v);
+      li.querySelector('input').checked=activeSet.has(v);
+      renderAll();
+    });
+    el.appendChild(li);
+  });
+}
+function wwtpIsAll(){ return activeWWTP===null; }
+function buildWWTPSlicer(){
+  const el=document.getElementById('wwtp-list'); el.innerHTML='';
+  wwtpVals.forEach(v=>{
+    const li=document.createElement('li');
+    li.className='slicer-item'; li.dataset.val=v;
+    const chk=wwtpIsAll()||activeWWTP.has(v);
+    li.innerHTML=`<input type="checkbox" ${chk?'checked':''}><span>${v}</span>`;
+    li.addEventListener('click',e=>{
+      e.preventDefault();
+      // First click on any item after "all" mode: switch to explicit set with all selected
+      if(wwtpIsAll()) activeWWTP=new Set(wwtpVals);
+      if(activeWWTP.has(v)) activeWWTP.delete(v); else activeWWTP.add(v);
+      // If all are now selected, revert to null (all-mode)
+      if(activeWWTP.size===wwtpVals.length) activeWWTP=null;
+      li.querySelector('input').checked=wwtpIsAll()||activeWWTP?.has(v);
+      updateWWTPAllBtn(); renderAll();
+    });
+    el.appendChild(li);
+  });
+  updateWWTPAllBtn();
+}
+function updateWWTPAllBtn(){
+  const btn=document.getElementById('wwtp-all-btn');
+  const lbl=document.getElementById('wwtp-count-lbl');
+  const all=wwtpIsAll();
+  btn.textContent=all?'Deselect All':'Select All';
+  lbl.textContent=all?`${wwtpVals.length} values`:`${activeWWTP?.size||0} / ${wwtpVals.length}`;
+}
+function toggleAllWWTP(){
+  if(wwtpIsAll()){
+    activeWWTP=new Set(); // deselect all → nothing passes
+    document.querySelectorAll('#wwtp-list .slicer-item input').forEach(i=>i.checked=false);
+  } else {
+    activeWWTP=null; // select all → null = no filter
+    document.querySelectorAll('#wwtp-list .slicer-item input').forEach(i=>i.checked=true);
+  }
+  updateWWTPAllBtn(); renderAll();
+}
+
+// ── Meter Basin dropdown ────────────────────────────────────────────
+let allBasinVals=[], mbItemEls=[];
+function mbIsAll(){ return activeMeterBasin===null; }
+
+function buildMeterBasinDD(){
+  allBasinVals=[...new Set(window.DATA_ROWS.map(r=>r.METERBASIN?.trim()).filter(Boolean))].sort();
+  const list=document.getElementById('dd-list');
+  list.innerHTML='';
+
+  // Search bar
+  const srchWrap=document.createElement('div'); srchWrap.className='dd-search';
+  srchWrap.innerHTML=`<input type="text" id="mb-search" placeholder="Search…" autocomplete="off">`;
+  srchWrap.addEventListener('click',e=>e.stopPropagation());
+  srchWrap.querySelector('input').addEventListener('input',e=>filterMBSearch(e.target.value));
+  list.appendChild(srchWrap);
+
+  // Scrollable items container
+  const itemsWrap=document.createElement('div'); itemsWrap.className='dd-items';
+  list.appendChild(itemsWrap);
+
+  // All toggle row
+  const allLi=document.createElement('div'); allLi.className='dd-item'; allLi.id='mb-all-item';
+  allLi.innerHTML=`<input type="checkbox" checked id="mb-all-chk"><span>All</span>`;
+  allLi.addEventListener('click',e=>{
+    e.stopPropagation();
+    if(mbIsAll()){
+      activeMeterBasin=new Set();  // deselect all → empty set = nothing passes
+      mbItemEls.forEach(el=>el.querySelector('input').checked=false);
+      document.getElementById('mb-all-chk').checked=false;
+    } else {
+      activeMeterBasin=null;  // select all → null = no filter
+      mbItemEls.forEach(el=>el.querySelector('input').checked=true);
+      document.getElementById('mb-all-chk').checked=true;
+    }
+    updateDDLabel(); renderAll();
+  });
+  itemsWrap.appendChild(allLi);
+
+  mbItemEls=[];
+  allBasinVals.forEach(v=>{
+    const li=document.createElement('div'); li.className='dd-item'; li.dataset.val=v;
+    li.innerHTML=`<input type="checkbox" checked><span>${v}</span>`;
+    li.addEventListener('click',e=>{
+      e.stopPropagation();
+      if(mbIsAll()) activeMeterBasin=new Set(allBasinVals); // leave all-mode, start explicit
+      if(activeMeterBasin.has(v)) activeMeterBasin.delete(v); else activeMeterBasin.add(v);
+      if(activeMeterBasin.size===allBasinVals.length) activeMeterBasin=null; // back to all-mode
+      li.querySelector('input').checked=mbIsAll()||activeMeterBasin?.has(v);
+      const ac=document.getElementById('mb-all-chk');
+      if(ac) ac.checked=mbIsAll();
+      updateDDLabel(); renderAll();
+    });
+    itemsWrap.appendChild(li);
+    mbItemEls.push(li);
+  });
+}
+function filterMBSearch(q){
+  const t=q.toLowerCase();
+  mbItemEls.forEach(el=>{ el.style.display=(!t||el.dataset.val.toLowerCase().includes(t))?'':'none'; });
+}
+function toggleDD(){
+  ddOpen=!ddOpen;
+  const list=document.getElementById('dd-list');
+  if(ddOpen){
+    const r=document.getElementById('dd-btn').getBoundingClientRect();
+    list.style.top=(r.bottom+2)+'px'; list.style.left=r.left+'px'; list.style.width=r.width+'px';
+    const si=document.getElementById('mb-search');
+    if(si){ si.value=''; filterMBSearch(''); setTimeout(()=>si.focus(),60); }
+  }
+  list.classList.toggle('open',ddOpen);
+}
+function updateDDLabel(){
+  const el=document.getElementById('dd-label');
+  if(mbIsAll()){ el.textContent='All'; return; }
+  const s=activeMeterBasin.size;
+  el.textContent=s===0?'None':s===1?[...activeMeterBasin][0]:`${s} selected`;
+}
+document.addEventListener('click',e=>{
+  if(!e.target.closest('.dd-wrap')){ddOpen=false;document.getElementById('dd-list').classList.remove('open');}
+});
+
+// ── renderAll ───────────────────────────────────────────────────────
+function renderAll(){
+  const sr=slicerRows();    // charts + table: full slicer data, no click removal
+  const ar=applyClick(sr);  // map + KPIs: cross-filtered
+  updateKPIs(ar);
+  updateTable(sr);           // table keeps all rows, click only highlights
+  updateDonut(sr);
+  updateBar(sr);
+  updateMap(ar);
+  updateCFBadge();
+}
+
+function resetFilters(){
+  CF={type:null,wcr_cats:new Set(),bars:new Set(),projectnums:new Set()};
+  activeMeterBasin=null; activeWWTP=null;
+  activePAID=new Set(['NO','YES']); activeCat=new Set(['Major','Minor','Small']);
+  tableSortCol=null; tableSortDir=-1; updateTableSortIcons();
+  mbItemEls.forEach(el=>el.querySelector('input').checked=true);
+  const ac=document.getElementById('mb-all-chk'); if(ac) ac.checked=true;
+  updateDDLabel();
+  updateWWTPAllBtn();
+  document.querySelectorAll('#wwtp-list .slicer-item input').forEach(i=>i.checked=true);
+  buildSlicer('paid-list',['NO','YES'],activePAID,null);
+  buildSlicer('cat-list',['Major','Minor','Small'],activeCat,WCR_COLORS);
+  renderAll();
+}
+
+// ── Init ────────────────────────────────────────────────────────────
+function fmtDate(s){const[m,d,y]=(s||'').split('/');const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return(s&&m&&d&&y)?`${mn[+m-1]} ${+d}, ${y}`:'-';}
+document.getElementById('refresh-lbl').textContent=fmtDate(window.DATA_REFRESH);
+initMap();
+buildMeterBasinDD();
+buildWWTPSlicer();
+buildSlicer('paid-list',['NO','YES'],activePAID,null);
+buildSlicer('cat-list',['Major','Minor','Small'],activeCat,WCR_COLORS);
+renderAll();
+</script>
+</body>
+</html>

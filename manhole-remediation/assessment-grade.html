@@ -1,0 +1,875 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Assessment Grade - MH Remediation Estimation</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .ag-page { padding: 8px 14px 20px; min-width: 1280px; }
+
+    /* ── Panel card ──────────────────────────────────────────────── */
+    .chart-panel {
+      background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+    }
+    .panel-title-bar {
+      background: #001E60;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      padding: 6px 8px;
+      border-radius: 7px 7px 0 0;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-height: 30px;
+      line-height: 18px;
+    }
+
+    /* ── Filter row ──────────────────────────────────────────────── */
+    .ag-filter-row {
+      display: grid;
+      grid-template-columns: 234px 1fr 120px;
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: stretch;
+    }
+
+    .date-row { display: flex; align-items: center; gap: 5px; padding: 6px 8px 7px; }
+    .slicer-label { font-size: 11px; color: var(--muted); white-space: nowrap; }
+    .slicer-input {
+      height: 26px; padding: 0 5px; border-radius: 5px;
+      border: 1px solid rgba(108,143,186,0.36); background: #102032;
+      color: var(--text); font: inherit; font-size: 11px; flex: 1; min-width: 0;
+    }
+    .slicer-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; }
+    .clear-btn {
+      height: 26px; padding: 0 7px; border-radius: 5px;
+      border: 1px solid rgba(108,143,186,0.3); background: rgba(16,32,50,0.7);
+      color: var(--muted); font: inherit; font-size: 10px; cursor: pointer; white-space: nowrap;
+    }
+    .clear-btn:hover { background: rgba(40,77,124,0.3); color: var(--text); }
+
+    .chip-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 7px 10px 8px; }
+    .toggle-btn {
+      height: 34px; padding: 0 12px; border-radius: 7px;
+      border: 1px solid rgba(108,143,186,0.36);
+      background: rgba(16,32,50,0.7); color: rgba(180,192,208,0.72);
+      font: inherit; font-size: 12px; cursor: pointer;
+      transition: background 0.15s, color 0.15s; white-space: nowrap;
+    }
+    .toggle-btn.active { background: rgba(28,110,140,0.55); border-color: #1C6E8C; color: #d0eaf7; }
+    .toggle-btn:hover:not(.active) { background: rgba(40,77,124,0.3); }
+
+    .last-update-box { padding: 7px 8px; text-align: center; }
+    .last-update-box .lbl { font-size: 10px; color: var(--muted); }
+    .last-update-box .val { font-size: 13px; font-weight: 700; color: var(--text); margin-top: 2px; }
+
+    /* ── Charts row ──────────────────────────────────────────────── */
+    .ag-charts-row {
+      display: grid;
+      grid-template-columns: 234px minmax(0,214fr) minmax(0,426fr) minmax(0,372fr);
+      gap: 8px;
+      margin-bottom: 8px;
+      align-items: stretch;
+    }
+    .ag-charts-row > * { min-width: 0; }
+
+    .ag-left-col { display: flex; flex-direction: column; gap: 8px; }
+
+    .kpi-wrap { padding: 8px 10px 9px; text-align: center; }
+    .kpi-val { font-size: 30px; font-weight: 800; color: var(--text); line-height: 1.2; }
+    .kpi-sub { font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+    /* Chart scroll (Reviewing Progress) */
+    .chart-scroll-outer {
+      overflow-x: auto; overflow-y: hidden; width: 100%;
+      scrollbar-width: thin; scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .chart-scroll-outer::-webkit-scrollbar { height: 5px; }
+    .chart-scroll-outer::-webkit-scrollbar-track { background: transparent; }
+    .chart-scroll-outer::-webkit-scrollbar-thumb { background: rgba(139,175,214,0.3); border-radius: 99px; }
+    .chart-scroll-inner { min-width: 100%; position: relative; height: 100%; min-height: 210px; }
+
+    /* ── Tables row ──────────────────────────────────────────────── */
+    .ag-tables-row {
+      display: grid;
+      grid-template-columns: 234px 120px minmax(0,280fr) minmax(0,613fr);
+      grid-template-rows: 350px;
+      gap: 8px;
+      align-items: stretch;
+    }
+    .ag-tables-row > * { min-width: 0; }
+    .ag-tables-left { display: flex; flex-direction: column; gap: 8px; }
+
+    /* Shared table style */
+    .ag-tbl { width: 100%; border-collapse: collapse; font-size: 11px; }
+    .ag-tbl th {
+      background: rgba(28,36,62,0.96); color: rgba(222,232,244,0.84);
+      font-weight: 700; font-size: 10px; padding: 5px 7px;
+      border-bottom: 1px solid rgba(113,144,186,0.2);
+      white-space: nowrap; position: sticky; top: 0; z-index: 1;
+    }
+    .ag-tbl td { padding: 4px 7px; border-bottom: 1px solid rgba(113,144,186,0.07); color: var(--text); white-space: nowrap; }
+    .ag-tbl tbody tr:nth-child(odd)  { background: rgba(21,35,52,0.88); }
+    .ag-tbl tbody tr:nth-child(even) { background: rgba(18,29,43,0.88); }
+    .ag-tbl tbody tr:hover { background: rgba(40,77,124,0.5); }
+    .ag-tbl tfoot td {
+      background: rgba(0,15,55,0.95); color: #fff;
+      font-weight: 700; font-size: 10px;
+      border-top: 1px solid rgba(108,143,186,0.35);
+      position: sticky; bottom: 0; z-index: 1;
+    }
+
+    .tbl-scroll { overflow-y: auto; }
+
+    /* Basin slicer */
+    .basin-list { overflow-y: auto; padding: 4px 6px; flex: 1; min-height: 0; }
+    .basin-item {
+      padding: 3px 6px; font-size: 11px; color: var(--muted);
+      cursor: pointer; border-radius: 4px; margin-bottom: 2px; white-space: nowrap;
+    }
+    .basin-item:hover { background: rgba(40,77,124,0.3); color: var(--text); }
+    .basin-item.selected { background: rgba(28,110,140,0.45); color: #d0eaf7; font-weight: 600; }
+
+    /* AG doc link */
+    .ag-doc-panel { border-radius: 0 0 7px 7px; }
+    .ag-doc-link {
+      display: block; text-align: center; padding: 9px 8px 10px;
+      font-size: 12px; font-weight: 600; color: #118DFF; text-decoration: none;
+    }
+    .ag-doc-link:hover { text-decoration: underline; color: #5bc4ff; }
+
+    /* Detail count */
+    .detail-count-bar { font-size: 10px; color: var(--muted); padding: 3px 8px; }
+
+    /* Subtab ghost (inactive pages) */
+    .subtab-ghost {
+      display: inline-block; padding: 10px 14px;
+      font-size: 12px; color: rgba(180,192,208,0.45); cursor: default;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">MH Remediation Estimation</h1>
+      <p style="margin:3px 0 0;font-size:14px;">Manhole Condition Assessment</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ──────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">No-Action Report</a>
+  <button class="subtab active">Assessment Grade</button>
+  <a class="subtab-ghost" href="defect-causes-45.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Defect Causes 4/5</a>
+  <a class="subtab-ghost" href="decision-matrix.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Decision Matrix</a>
+</div>
+
+<!-- ── Page ──────────────────────────────────────────────────────────────── -->
+<div class="ag-page">
+
+  <!-- ══════════ FILTER ROW ══════════ -->
+  <div class="ag-filter-row">
+
+    <!-- Inspection Report Date -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Inspection Report Date</div>
+      <div class="date-row">
+        <span class="slicer-label">From</span>
+        <input id="date-start" type="date" class="slicer-input" min="2021-01-01" max="2026-12-31" />
+        <span class="slicer-label">To</span>
+        <input id="date-end" type="date" class="slicer-input" min="2021-01-01" max="2026-12-31" />
+        <button class="clear-btn" onclick="clearDates()">Clear</button>
+      </div>
+    </div>
+
+    <!-- DefectCat chips (empty title bar) -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">&nbsp;</div>
+      <div class="chip-row" id="defect-chip-row"></div>
+    </div>
+
+    <!-- Last Update -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Last Update</div>
+      <div class="last-update-box">
+        <div class="lbl">Data through</div>
+        <div class="val" id="last-update-val">-</div>
+      </div>
+    </div>
+
+  </div><!-- /filter row -->
+
+
+  <!-- ══════════ CHARTS ROW ══════════ -->
+  <div class="ag-charts-row">
+
+    <!-- Left col: MH Count card + Inspection Source -->
+    <div class="ag-left-col">
+
+      <div class="chart-panel">
+        <div class="panel-title-bar">MH Count</div>
+        <div class="kpi-wrap">
+          <div class="kpi-val" id="mh-count-val">-</div>
+          <div class="kpi-sub">manholes</div>
+        </div>
+      </div>
+
+      <div class="chart-panel" style="flex:1; display:flex; flex-direction:column;">
+        <div class="panel-title-bar">Inspection Source</div>
+        <div style="flex:1; min-height:80px; padding:6px 8px 8px; position:relative;">
+          <canvas id="canvas-source"></canvas>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Assessment Grade Status -->
+    <div class="chart-panel" style="display:flex; flex-direction:column;">
+      <div class="panel-title-bar">Assessment Grade Status</div>
+      <div style="padding:6px 8px 8px; position:relative; flex:1; min-height:210px;">
+        <canvas id="canvas-status"></canvas>
+      </div>
+    </div>
+
+    <!-- Manhole with Assessment Grade -->
+    <div class="chart-panel" style="display:flex; flex-direction:column;">
+      <div class="panel-title-bar">Manhole with Assessment Grade</div>
+      <div style="padding:6px 8px 8px; position:relative; flex:1; min-height:210px;">
+        <canvas id="canvas-ag"></canvas>
+      </div>
+    </div>
+
+    <!-- Reviewing Progress (monthly, scrollable) -->
+    <div class="chart-panel" style="display:flex; flex-direction:column;">
+      <div class="panel-title-bar">Reviewing Progress</div>
+      <div style="padding:6px 4px 8px; flex:1; min-height:210px; display:flex;">
+        <div class="chart-scroll-outer" style="flex:1;">
+          <div id="progress-inner" class="chart-scroll-inner">
+            <canvas id="canvas-progress"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /charts row -->
+
+
+  <!-- ══════════ TABLES ROW ══════════ -->
+  <div class="ag-tables-row">
+
+    <!-- Left col: DefectCat table + Summary table + AG Doc link -->
+    <div class="ag-tables-left">
+
+      <div class="chart-panel" style="height:152px; display:flex; flex-direction:column;">
+        <div class="panel-title-bar">Manhole with Assessment Grade</div>
+        <div style="flex:1; overflow-y:auto; min-height:0;">
+          <table class="ag-tbl">
+            <thead><tr>
+              <th style="text-align:left;">DefectCat</th>
+              <th style="text-align:right;">Count</th>
+            </tr></thead>
+            <tbody id="defectcat-tbody"></tbody>
+            <tfoot id="defectcat-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+      <div class="chart-panel" style="flex:1; display:flex; flex-direction:column; min-height:0;">
+        <div class="panel-title-bar">Summary</div>
+        <div style="flex:1; overflow-y:auto; min-height:0;">
+          <table class="ag-tbl">
+            <thead><tr>
+              <th style="text-align:left;">AG Score</th>
+              <th style="text-align:right;">AG-ed MH Count</th>
+            </tr></thead>
+            <tbody id="summary-tbody"></tbody>
+            <tfoot id="summary-tfoot"></tfoot>
+          </table>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Basin Search slicer -->
+    <div class="chart-panel" style="display:flex; flex-direction:column;">
+      <div class="panel-title-bar">Basin Search</div>
+      <div class="basin-list" id="basin-list"></div>
+    </div>
+
+    <!-- Basin Status table -->
+    <div class="chart-panel" style="display:flex; flex-direction:column;">
+      <div class="panel-title-bar">Basin Status</div>
+      <div style="flex:1; overflow-y:auto; min-height:0;">
+        <table class="ag-tbl">
+          <thead><tr>
+            <th style="text-align:left;">Basin</th>
+            <th style="text-align:right;">% Done</th>
+            <th style="text-align:right;">Total MH</th>
+            <th style="text-align:left;">Source</th>
+          </tr></thead>
+          <tbody id="basin-status-tbody"></tbody>
+          <tfoot id="basin-status-tfoot"></tfoot>
+        </table>
+      </div>
+    </div>
+
+    <!-- Detail table -->
+    <div class="chart-panel" style="display:flex; flex-direction:column;">
+      <div class="panel-title-bar">Detail</div>
+      <div class="detail-count-bar" id="detail-count"></div>
+      <div style="flex:1; overflow-x:auto; overflow-y:auto; min-height:0;">
+        <table class="ag-tbl" style="min-width:860px;">
+          <thead><tr>
+            <th style="text-align:left;">MHNbr</th>
+            <th>QR</th>
+            <th>AG</th>
+            <th style="text-align:left;">Reviewed Date</th>
+            <th style="text-align:left;">Done</th>
+            <th style="text-align:left;">Source</th>
+            <th>Link</th>
+            <th style="text-align:left;">DefectCat</th>
+            <th style="text-align:left;">DefectType</th>
+            <th style="text-align:left;">Remediated</th>
+            <th style="text-align:left;">WO Basin</th>
+          </tr></thead>
+          <tbody id="detail-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+
+  </div><!-- /tables row -->
+
+</div><!-- /ag-page -->
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+// ── Constants ─────────────────────────────────────────────────────────────────
+const GRID  = 'rgba(139,175,214,0.12)';
+const TICK  = 'rgba(180,192,208,0.85)';
+const C_YES   = '#6B007B';  // isReviewDone=Yes
+const C_NO    = '#FC2A00';  // isReviewDone=No
+const C_AG012 = '#50005d';  // AG grade 0/1/2
+const C_AG3   = '#a8337d';  // AG grade 3
+const C_AG45  = '#F80606';  // AG grade 4/5
+const C_BLUE  = '#118DFF';  // primary accent
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let filterStart = null, filterEnd = null;
+let activeDefectCats = new Set();   // values are the raw DefectCat strings (or null for blank)
+let activeBasins     = new Set();
+const charts = {};
+let _allDefectCats = [];   // full list from all rows, set at init
+let _availBasins   = [];   // basins visible in current filter, set per render
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseLocalDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+function escH(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escA(s) {
+  if (s == null) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;');
+}
+
+// ── Filtering ─────────────────────────────────────────────────────────────────
+function getDateDefectCatRows() {
+  return window.DATA.rows.filter(r => {
+    if (filterStart || filterEnd) {
+      if (!r.Date) return false;
+      const d = parseLocalDate(r.Date);
+      if (filterStart && d < filterStart) return false;
+      if (filterEnd   && d > filterEnd)   return false;
+    }
+    if (activeDefectCats.size > 0) {
+      // active set contains raw values (strings or null)
+      if (!activeDefectCats.has(r.DefectCat !== undefined ? r.DefectCat : null)) return false;
+    }
+    return true;
+  });
+}
+
+function applyBasinFilter(ddcRows) {
+  if (activeBasins.size === 0) return ddcRows;
+  return ddcRows.filter(r => activeBasins.has(r.Basin || ''));
+}
+
+// ── Chart.js plugins ─────────────────────────────────
+const progYearGroupPlugin = {
+  id: 'progYearGroups',
+  afterDraw(chart) {
+    const months = chart.options.plugins.progYearGroups && chart.options.plugins.progYearGroups.months;
+    if (!months || !months.length) return;
+    const { ctx, chartArea, scales } = chart;
+    const xScale = scales.x;
+    const groups = [];
+    months.forEach((m, i) => {
+      const last = groups[groups.length - 1];
+      if (last && last.label === m.progYear) { last.endIdx = i; }
+      else groups.push({ label: m.progYear || '', startIdx: i, endIdx: i });
+    });
+    const lineY = chartArea.bottom + 30;
+    const bandY = chartArea.bottom + 39;
+    ctx.save();
+    groups.forEach((g, gi) => {
+      const x1 = xScale.getPixelForValue(g.startIdx);
+      const x2 = xScale.getPixelForValue(g.endIdx);
+      const mid = (x1 + x2) / 2;
+      if (gi > 0) {
+        const sepX = (xScale.getPixelForValue(g.startIdx - 1) + x1) / 2;
+        ctx.strokeStyle = 'rgba(139,175,214,0.22)'; ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(sepX, chartArea.top); ctx.lineTo(sepX, chartArea.bottom + 28); ctx.stroke();
+        ctx.setLineDash([]);
+      }
+      ctx.strokeStyle = 'rgba(139,175,214,0.35)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(x1, lineY); ctx.lineTo(x2, lineY); ctx.stroke();
+      ctx.font = 'bold 10px Arial'; ctx.fillStyle = 'rgba(198,211,228,0.95)';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+      ctx.fillText(g.label, mid, bandY);
+    });
+    ctx.restore();
+  }
+};
+
+const dataLabelPlugin = {
+  id: 'barDataLabels',
+  afterDatasetsDraw(chart) {
+    const opts = chart.options.plugins.barDataLabels;
+    if (!opts || !opts.show) return;
+    const { ctx } = chart;
+    const n = chart.data.labels.length;
+    const skip = Math.max(1, Math.ceil(n / 22));
+    chart.data.datasets.forEach((ds, di) => {
+      if (ds.type === 'line') return;
+      const meta = chart.getDatasetMeta(di);
+      for (let i = 0; i < n; i++) {
+        if (i % skip !== 0) continue;
+        const value = ds.data[i]; if (!value) continue;
+        const bar = meta.data[i]; if (!bar) continue;
+        const { x, y } = bar.getProps(['x', 'y'], true);
+        _drawBarLabel(ctx, value.toLocaleString(), x, y);
+      }
+    });
+  }
+};
+
+function _drawBarLabel(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = 'bold 11px Arial'; ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+  const w = ctx.measureText(text).width + 8, h = 14;
+  ctx.fillStyle = 'rgba(107,0,123,0.28)';
+  const rx = x - w / 2, ry = y - h - 2;
+  if (ctx.roundRect) { ctx.beginPath(); ctx.roundRect(rx, ry, w, h, 3); ctx.fill(); }
+  else ctx.fillRect(rx, ry, w, h);
+  ctx.fillStyle = 'rgba(235,220,240,0.96)';
+  ctx.fillText(text, x, y - 2);
+  ctx.restore();
+}
+
+Chart.register(progYearGroupPlugin, dataLabelPlugin);
+Chart.defaults.color = TICK;
+Chart.defaults.font.family = "'Segoe UI', Arial, sans-serif";
+Chart.defaults.font.size = 11;
+
+const TOOLTIP_STYLE = {
+  backgroundColor: 'rgba(12,21,34,0.92)', borderColor: 'rgba(139,175,214,0.3)',
+  borderWidth: 1, titleColor: '#f1f5fb', bodyColor: '#b4c0d0',
+};
+
+// ── Chart: Inspection Source ───────────────────────────────────────────────────
+function renderSourceChart(rows) {
+  const map = {};
+  rows.forEach(r => { const s = r.Source || '(Blank)'; map[s] = (map[s] || 0) + 1; });
+  const sorted = Object.entries(map).sort((a, b) => b[1] - a[1]);
+  if (charts.source) charts.source.destroy();
+  charts.source = new Chart(document.getElementById('canvas-source'), {
+    type: 'bar',
+    data: {
+      labels: sorted.map(e => e[0]),
+      datasets: [{ data: sorted.map(e => e[1]), backgroundColor: C_BLUE, borderRadius: 3 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { bottom: 16, top: 4 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: TOOLTIP_STYLE,
+        progYearGroups: { months: [] },
+        barDataLabels: { show: true },
+      },
+      scales: {
+        x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 9 }, maxRotation: 40 } },
+        y: { display: false },
+      },
+    },
+  });
+}
+
+// ── Chart: Assessment Grade Status ─────────────────────────────────────────────
+function renderStatusChart(rows) {
+  const yesN = rows.filter(r => r.isReviewDone === 'Yes').length;
+  const noN  = rows.length - yesN;
+  // sort descending by count
+  const entries = [[yesN >= noN ? 'Yes' : 'No', Math.max(yesN, noN), yesN >= noN ? C_YES : C_NO],
+                   [yesN >= noN ? 'No' : 'Yes', Math.min(yesN, noN), yesN >= noN ? C_NO  : C_YES]];
+  if (charts.status) charts.status.destroy();
+  charts.status = new Chart(document.getElementById('canvas-status'), {
+    type: 'bar',
+    data: {
+      labels: entries.map(e => e[0]),
+      datasets: [{ data: entries.map(e => e[1]), backgroundColor: entries.map(e => e[2]), borderRadius: 4 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { bottom: 16, top: 4 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: TOOLTIP_STYLE,
+        progYearGroups: { months: [] },
+        barDataLabels: { show: true },
+      },
+      scales: {
+        x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 11 } } },
+        y: { display: false },
+      },
+    },
+  });
+}
+
+// ── Chart: Manhole with Assessment Grade ───────────────────────────────────────
+function renderAGChart(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (r.AssessmentGrade == null) return;
+    map[r.AssessmentGrade] = (map[r.AssessmentGrade] || 0) + 1;
+  });
+  const grades = Object.keys(map).map(Number).sort((a, b) => a - b);
+  if (charts.ag) charts.ag.destroy();
+  charts.ag = new Chart(document.getElementById('canvas-ag'), {
+    type: 'bar',
+    data: {
+      labels: grades.map(String),
+      datasets: [{
+        data: grades.map(g => map[g]),
+        backgroundColor: grades.map(g => g >= 4 ? C_AG45 : g === 3 ? C_AG3 : C_AG012),
+        borderRadius: 4,
+      }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { bottom: 16, top: 4 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: TOOLTIP_STYLE,
+        progYearGroups: { months: [] },
+        barDataLabels: { show: true },
+      },
+      scales: {
+        x: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 11 } } },
+        y: { display: false },
+      },
+    },
+  });
+}
+
+// ── Chart: Reviewing Progress (monthly, year brackets) ─────────────────────────
+function buildProgressSpine() {
+  const spine = [];
+  for (let yr = 2024; yr <= 2026; yr++) {
+    const maxM = yr === 2026 ? 3 : 12;
+    for (let mo = 1; mo <= maxM; mo++) {
+      spine.push({
+        key: `${yr}-${String(mo).padStart(2,'0')}`,
+        progYear: String(yr),
+        label: new Date(yr, mo - 1, 1).toLocaleDateString('en-US', { month: 'short' }),
+      });
+    }
+  }
+  return spine;
+}
+
+function renderProgressChart(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (!r.reviewedDate || r.ID == null) return;
+    const yr = parseInt(r.reviewedDate.substring(0, 4));
+    if (yr < 2024 || yr > 2026) return;
+    const key = r.reviewedDate.substring(0, 7);
+    map[key] = (map[key] || 0) + 1;
+  });
+  const spine = buildProgressSpine();
+  const vals  = spine.map(m => map[m.key] || 0);
+
+  document.getElementById('progress-inner').style.width = Math.max(300, spine.length * 26) + 'px';
+
+  if (charts.progress) charts.progress.destroy();
+  charts.progress = new Chart(document.getElementById('canvas-progress'), {
+    type: 'bar',
+    data: {
+      labels: spine.map(m => m.label),
+      datasets: [{ data: vals, backgroundColor: C_BLUE, borderRadius: 3, label: 'Reviewed' }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { bottom: 48, top: 4 } },
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { display: false },
+        tooltip: TOOLTIP_STYLE,
+        progYearGroups: { months: spine },
+        barDataLabels: { show: true },
+      },
+      scales: {
+        x: {
+          grid: { color: GRID },
+          ticks: { color: TICK, font: { size: 9 }, maxRotation: 0, autoSkip: false },
+        },
+        y: { grid: { color: GRID }, ticks: { color: TICK, font: { size: 9 } } },
+      },
+    },
+  });
+}
+
+// ── Table: DefectCat ───────────────────────────────────────────────────────────
+function renderDefectCatTable(rows) {
+  const map = {};
+  rows.forEach(r => {
+    if (r.ID == null) return;
+    const dc = r.DefectCat != null ? r.DefectCat : '(Blank)';
+    map[dc] = (map[dc] || 0) + 1;
+  });
+  const sorted = Object.entries(map).sort((a, b) => {
+    if (a[0] === '(Blank)') return 1;
+    if (b[0] === '(Blank)') return -1;
+    return a[0].localeCompare(b[0]);
+  });
+  const total = sorted.reduce((s, [, c]) => s + c, 0);
+  document.getElementById('defectcat-tbody').innerHTML =
+    sorted.map(([cat, cnt]) =>
+      `<tr><td>${escH(cat)}</td><td style="text-align:right;">${cnt.toLocaleString()}</td></tr>`
+    ).join('');
+  document.getElementById('defectcat-tfoot').innerHTML =
+    `<tr><td>Total</td><td style="text-align:right;">${total.toLocaleString()}</td></tr>`;
+}
+
+// ── Table: Summary ─────────────────────────────────────────────────────────────
+function renderSummaryTable(rows) {
+  const map = {};
+  rows.filter(r => r.reviewedDate != null).forEach(r => {
+    const g = r.AssessmentGrade != null ? String(r.AssessmentGrade) : '(Blank)';
+    map[g] = (map[g] || 0) + 1;
+  });
+  const sorted = Object.entries(map).sort((a, b) => {
+    const ai = a[0] === '(Blank)' ? 999 : Number(a[0]);
+    const bi = b[0] === '(Blank)' ? 999 : Number(b[0]);
+    return ai - bi;
+  });
+  document.getElementById('summary-tbody').innerHTML =
+    sorted.map(([g, cnt]) =>
+      `<tr><td>${escH(g)}</td><td style="text-align:right;">${cnt.toLocaleString()}</td></tr>`
+    ).join('');
+  const total = sorted.reduce((s, [, cnt]) => s + cnt, 0);
+  document.getElementById('summary-tfoot').innerHTML =
+    `<tr><td>Total</td><td style="text-align:right;">${total.toLocaleString()}</td></tr>`;
+}
+
+// ── Table: Basin Status ────────────────────────────────────────────────────────
+function renderBasinStatusTable(rows) {
+  // Basin-level % (ALLEXCEPT Basin - computed from current filter, per basin ignoring Source)
+  const basinYes = {}, basinAll = {};
+  rows.forEach(r => {
+    const b = r.Basin || '';
+    basinAll[b] = (basinAll[b] || 0) + 1;
+    if (r.isReviewDone === 'Yes') basinYes[b] = (basinYes[b] || 0) + 1;
+  });
+  // Group by (Basin, Source)
+  const groups = {};
+  rows.forEach(r => {
+    const b = r.Basin || '';
+    const s = r.Source || '(Blank)';
+    const k = b + '\x00' + s;
+    if (!groups[k]) groups[k] = { basin: b, source: s, count: 0 };
+    groups[k].count++;
+  });
+  const sorted = Object.values(groups).sort((a, b) => a.basin.localeCompare(b.basin));
+  document.getElementById('basin-status-tbody').innerHTML = sorted.map(g => {
+    const tot = basinAll[g.basin] || 0;
+    const yes = basinYes[g.basin] || 0;
+    const pct = tot ? Math.round(yes / tot * 100) + '%' : '0%';
+    return `<tr>
+      <td>${escH(g.basin)}</td>
+      <td style="text-align:right;">${pct}</td>
+      <td style="text-align:right;">${g.count.toLocaleString()}</td>
+      <td>${escH(g.source)}</td>
+    </tr>`;
+  }).join('');
+  const totalAll = rows.length;
+  const totalYes = rows.filter(r => r.isReviewDone === 'Yes').length;
+  const totalPct = totalAll ? Math.round(totalYes / totalAll * 100) + '%' : '0%';
+  document.getElementById('basin-status-tfoot').innerHTML =
+    `<tr>
+      <td>Total</td>
+      <td style="text-align:right;">${totalPct}</td>
+      <td style="text-align:right;">${totalAll.toLocaleString()}</td>
+      <td></td>
+    </tr>`;
+}
+
+// ── Table: Detail ──────────────────────────────────────────────────────────────
+function renderDetailTable(rows) {
+  const MAX = 500;
+  const sorted = rows.slice().sort((a, b) => {
+    if (!a.reviewedDate && !b.reviewedDate) return 0;
+    if (!a.reviewedDate) return 1;
+    if (!b.reviewedDate) return -1;
+    return b.reviewedDate.localeCompare(a.reviewedDate);
+  });
+  document.getElementById('detail-count').textContent =
+    rows.length.toLocaleString() + ' rows' +
+    (rows.length > MAX ? ` - showing first ${MAX}` : '');
+  document.getElementById('detail-tbody').innerHTML = sorted.slice(0, MAX).map(r => {
+    const lnk = r.inspection_link
+      ? `<a href="${escA(r.inspection_link)}" target="_blank" style="color:#118DFF;text-decoration:none;">↗</a>` : '';
+    return `<tr>
+      <td>${escH(r.MHNbr || '')}</td>
+      <td style="text-align:center;">${r['MACP QuickRating'] ?? ''}</td>
+      <td style="text-align:center;">${r.AssessmentGrade ?? ''}</td>
+      <td>${r.reviewedDate || ''}</td>
+      <td>${escH(r.isReviewDone || '')}</td>
+      <td>${escH(r.Source || '')}</td>
+      <td style="text-align:center;">${lnk}</td>
+      <td>${escH(r.DefectCat || '')}</td>
+      <td>${escH(r.DefectType || '')}</td>
+      <td>${r.DateRemediated || ''}</td>
+      <td>${escH(r.CtrWOBasin || '')}</td>
+    </tr>`;
+  }).join('');
+}
+
+// ── KPI: MH Count ──────────────────────────────────────────────────────────────
+function renderMHCount(rows) {
+  const n = rows.filter(r => r.UPSMH_ID != null).length;
+  document.getElementById('mh-count-val').textContent = n.toLocaleString();
+}
+
+// ── Basin slicer ───────────────────────────────────────────────────────────────
+function renderBasinSlicer(ddcRows) {
+  const basins = [...new Set(ddcRows.map(r => r.Basin || ''))].filter(Boolean).sort();
+  _availBasins = basins;
+  document.getElementById('basin-list').innerHTML = basins.map((b, i) =>
+    `<div class="basin-item${activeBasins.has(b) ? ' selected' : ''}" onclick="toggleBasin(${i})">${escH(b)}</div>`
+  ).join('');
+}
+
+function toggleBasin(idx) {
+  const b = _availBasins[idx];
+  if (!b) return;
+  if (activeBasins.has(b)) activeBasins.delete(b);
+  else                      activeBasins.add(b);
+  renderAll();
+}
+
+// ── DefectCat chips ────────────────────────────────────────────────────────────
+function renderDefectCatChips() {
+  document.getElementById('defect-chip-row').innerHTML = _allDefectCats.map((cat, i) => {
+    const label = cat != null ? cat : '(Blank)';
+    const active = activeDefectCats.has(cat);
+    return `<button class="toggle-btn${active ? ' active' : ''}" onclick="toggleDefectCat(${i})">${escH(label)}</button>`;
+  }).join('');
+}
+
+function toggleDefectCat(idx) {
+  const cat = _allDefectCats[idx];
+  if (activeDefectCats.has(cat)) activeDefectCats.delete(cat);
+  else                            activeDefectCats.add(cat);
+  renderDefectCatChips();
+  renderAll();
+}
+
+// ── Date slicer ────────────────────────────────────────────────────────────────
+function clearDates() {
+  document.getElementById('date-start').value = '';
+  document.getElementById('date-end').value   = '';
+  filterStart = null; filterEnd = null;
+  renderAll();
+}
+
+document.getElementById('date-start').addEventListener('change', e => {
+  filterStart = e.target.value ? parseLocalDate(e.target.value) : null;
+  renderAll();
+});
+document.getElementById('date-end').addEventListener('change', e => {
+  filterEnd = e.target.value ? parseLocalDate(e.target.value) : null;
+  renderAll();
+});
+
+// ── Main render ────────────────────────────────────────────────────────────────
+function renderAll() {
+  const ddcRows = getDateDefectCatRows();
+  const rows    = applyBasinFilter(ddcRows);
+  renderBasinSlicer(ddcRows);
+  renderMHCount(rows);
+  renderSourceChart(rows);
+  renderStatusChart(rows);
+  renderAGChart(rows);
+  renderProgressChart(rows);
+  renderDefectCatTable(rows);
+  renderSummaryTable(rows);
+  renderBasinStatusTable(rows);
+  renderDetailTable(rows);
+}
+
+// ── Scroll wheel enhancement ───────────────────────────────────────────────────
+function enhanceScrolling() {
+  document.querySelectorAll('.chart-scroll-outer').forEach(el => {
+    el.addEventListener('wheel', e => {
+      if (el.scrollWidth <= el.clientWidth) return;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!delta) return;
+      e.preventDefault();
+      el.scrollLeft += delta * 2.8;
+    }, { passive: false });
+  });
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  document.getElementById('last-update-val').textContent = window.DATA.lastUpdate || '-';
+
+  // Build static DefectCat list from all rows (chips don't respond to date filter)
+  const catSet = new Set(window.DATA.rows.map(r => r.DefectCat !== undefined ? r.DefectCat : null));
+  _allDefectCats = [...catSet].sort((a, b) => {
+    if (a === null) return 1;
+    if (b === null) return -1;
+    return a.localeCompare(b);
+  });
+  renderDefectCatChips();
+  renderAll();
+  enhanceScrolling();
+}
+
+document.addEventListener('DOMContentLoaded', init);
+</script>
+</body>
+</html>

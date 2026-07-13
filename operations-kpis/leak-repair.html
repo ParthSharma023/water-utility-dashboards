@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wastewater Operations KPIs - Leak Repair Perf.</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+
+    /* ── Topbar ── */
+    .topbar { flex-shrink: 0; padding: 12px 18px; gap: 14px; align-items: center; }
+    .tb-title { font-size: 20px; font-weight: 700; color: #fff; letter-spacing: 0; }
+    .tb-last { text-align: right; margin-left: auto; white-space: nowrap; }
+    .tb-last-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .tb-last-val { font-size: 13px; color: #F10101; font-style: italic; font-weight: 600; }
+
+    /* ── Page intro (below subtabs) ── */
+    .page-intro {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: minmax(0,1fr) auto auto;
+      align-items: center;
+      gap: 20px;
+      padding: 8px 12px;
+      border-top: 1px solid rgba(139,175,214,0.08);
+      border-bottom: 1px solid rgba(139,175,214,0.12);
+      background: rgba(8,18,32,0.34);
+    }
+    .page-kicker { margin: 0 0 2px; color: #48d0c9; font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.08em; }
+    .page-heading { margin: 0; color: #fff; font-size: 17px; line-height: 1.15; font-weight: 700; }
+    .page-statement { margin: 3px 0 0; color: #b4c0d0; font-size: 11px; line-height: 1.35; max-width: 680px; }
+
+    /* Stat badges in page intro */
+    .stat-badges { display: flex; gap: 10px; }
+    .stat-badge {
+      background: rgba(26,39,57,0.8); border: 1px solid #1F275C;
+      border-radius: 8px; padding: 6px 12px; text-align: center; min-width: 90px;
+    }
+    .stat-badge-label { font-size: 9px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 2px; }
+    .stat-badge-val { font-size: 18px; font-weight: 700; color: #f1f5fb; }
+
+    /* Date range control */
+    .date-control { display: flex; flex-direction: column; gap: 3px; }
+    .date-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .date-inputs { display: flex; align-items: center; gap: 5px; }
+    .date-inputs input[type="date"] {
+      background: rgba(94,127,168,0.2); border: 1px solid rgba(124,160,204,0.3);
+      color: var(--text); padding: 4px 7px; border-radius: 7px; font-size: 12px; font-family: inherit;
+    }
+    .date-inputs span { color: var(--muted); font-size: 11px; }
+
+    /* ── Page body ── */
+    .page-body { flex: 1; min-height: 0; display: flex; gap: 8px; padding: 8px 12px 12px; }
+
+    /* ── Left sidebar (data note only) ── */
+    .sidebar {
+      width: 196px; flex-shrink: 0; display: flex; flex-direction: column;
+      padding: 6px;
+      border: 1px solid rgba(139,175,214,0.14); border-radius: 8px;
+      background: rgba(8,18,32,0.22); min-height: 0;
+    }
+    .note-panel {
+      flex: 1; min-height: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px; overflow: hidden;
+      display: flex; flex-direction: column;
+    }
+    .note-title {
+      background: #001E60; color: #fff; font-size: 9px; font-weight: 700;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      padding: 4px 8px; flex-shrink: 0;
+    }
+    .note-body {
+      padding: 9px 10px; font-size: 10.5px; color: #b4c0d0; line-height: 1.6; overflow-y: auto;
+      flex: 1; min-height: 0;
+    }
+    .note-body strong { color: #f1f5fb; }
+    .note-body p { margin: 0 0 6px; }
+
+    /* ── Main column ── */
+    .main-col { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+
+    /* Combo chart panel */
+    .chart-panel {
+      flex: 1; min-height: 0; display: flex; flex-direction: column;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3); overflow: hidden;
+    }
+    .panel-title {
+      background: #001E60; color: #fff; font-size: 9.5pt; text-align: center;
+      padding: 3px 8px; flex-shrink: 0; font-family: Arial, sans-serif;
+    }
+    .chart-wrap { flex: 1; min-height: 0; padding: 6px; }
+
+    /* Chart legend */
+    .chart-legend { display: flex; gap: 14px; justify-content: center; padding: 3px 8px 5px; flex-shrink: 0; }
+    .legend-item { display: flex; align-items: center; gap: 5px; font-size: 10px; color: var(--muted); }
+    .legend-box { width: 12px; height: 12px; border-radius: 2px; }
+    .legend-line { width: 22px; height: 2.5px; border-radius: 2px; }
+
+    /* Bottom row */
+    .bottom-row { display: flex; gap: 6px; height: 220px; flex-shrink: 0; }
+
+    .b-panel {
+      display: flex; flex-direction: column; min-width: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px; overflow: hidden;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.3);
+    }
+    .b-panel.kpi-pane { flex: 0 0 52%; }
+    .b-panel.tbl-pane { flex: 1; }
+    .b-panel-body { padding: 10px; overflow-y: auto; flex: 1; min-height: 0; }
+
+    /* KPI card dark theme */
+    .b-panel-body .card { font-family: Segoe UI,Arial,sans-serif; background:transparent; border:none; padding:0; }
+    .b-panel-body .title { font-size:13px; font-weight:700; color:#f1f5fb; display:flex; justify-content:space-between; align-items:center; margin-bottom:5px; }
+    .b-panel-body .status-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; margin-left:5px; }
+    .b-panel-body .value { font-size:26px; font-weight:700; color:#f1f5fb; margin-bottom:5px; }
+    .b-panel-body .bar-bg { width:100%; height:7px; border-radius:5px; background:rgba(255,255,255,0.1); margin-bottom:5px; overflow:hidden; }
+    .b-panel-body .bar-fill { height:100%; }
+    .b-panel-body .subtitle { font-size:11px; color:#b4c0d0; margin-bottom:7px; }
+    .b-panel-body .formula { background:rgba(255,255,255,0.05); padding:7px; border-radius:5px; font-size:11px; border:1px solid rgba(139,175,214,0.18); color:#b4c0d0; line-height:1.5; }
+    .b-panel-body .formula strong { color:#f1f5fb; }
+
+    /* Detail table */
+    .tbl-scroll { overflow: auto; flex: 1; min-height: 0; }
+    table.dtbl { width:100%; border-collapse:collapse; font-size:9px; }
+    table.dtbl th { background:#001E60; color:#fff; padding:4px 5px; font-size:8.5px; text-align:left; position:sticky; top:0; z-index:1; white-space:nowrap; }
+    table.dtbl td { padding:3px 5px; color:var(--text); border-bottom:1px solid rgba(139,175,214,0.09); white-space:nowrap; }
+    table.dtbl tr:hover td { background:rgba(139,175,214,0.07); }
+    .c-pass { color:#0f6d39; font-weight:700; }
+    .c-fail { color:#d93025; font-weight:700; }
+
+    /* Scrollbar styling (consistent with other pages) */
+    .sidebar, .note-body, .b-panel-body, .tbl-scroll {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.28) transparent;
+    }
+    .sidebar::-webkit-scrollbar, .note-body::-webkit-scrollbar,
+    .b-panel-body::-webkit-scrollbar, .tbl-scroll::-webkit-scrollbar { width:7px; height:7px; }
+    .sidebar::-webkit-scrollbar-thumb, .note-body::-webkit-scrollbar-thumb,
+    .b-panel-body::-webkit-scrollbar-thumb, .tbl-scroll::-webkit-scrollbar-thumb
+      { background:rgba(139,175,214,0.28); border-radius:10px; }
+    .sidebar::-webkit-scrollbar-track, .note-body::-webkit-scrollbar-track,
+    .b-panel-body::-webkit-scrollbar-track, .tbl-scroll::-webkit-scrollbar-track
+      { background:transparent; }
+  </style>
+</head>
+<body>
+
+<!-- ── Topbar ── -->
+<div class="topbar">
+  <a class="tb-mark" href="overview.html" title="Home">WO</a>
+  <div class="tb-title">Wastewater Operations KPIs</div>
+  <div class="tb-last">
+    <div class="tb-last-label">Last Update</div>
+    <div class="tb-last-val" id="last-update">-</div>
+  </div>
+</div>
+
+<!-- ── Subtabs ── -->
+<div class="subtabs">
+  <a class="subtab-ghost subtab" href="overview.html">Overview</a>
+  <a class="subtab-ghost subtab" href="sso-resolution.html">SSO Resolution Time</a>
+  <a class="subtab-ghost subtab" href="sewer-assessment.html">Sewer Assessment</a>
+  <button class="subtab active">Leak Repair Perf.</button>
+</div>
+
+<!-- ── Page intro ── -->
+<section class="page-intro">
+  <div>
+    <p class="page-kicker">KPI 3</p>
+    <h1 class="page-heading">Leak Repair Perf.</h1>
+    <p class="page-statement">Water leak repair work orders completed within 7 days - goal: 90% of completed WOs closed within 7 days.</p>
+  </div>
+  <div class="stat-badges">
+    <div class="stat-badge">
+      <div class="stat-badge-label">Initiated WOs</div>
+      <div class="stat-badge-val" id="stat-initiated">-</div>
+    </div>
+    <div class="stat-badge">
+      <div class="stat-badge-label">Completed WOs</div>
+      <div class="stat-badge-val" id="stat-completed">-</div>
+    </div>
+    <div class="stat-badge">
+      <div class="stat-badge-label">Avg Days</div>
+      <div class="stat-badge-val" id="stat-avg">-</div>
+    </div>
+  </div>
+  <div class="date-control">
+    <div class="date-label">Time Range</div>
+    <div class="date-inputs">
+      <input type="date" id="dt-start" value="2024-07-01">
+      <span>-</span>
+      <input type="date" id="dt-end" value="2026-03-31">
+    </div>
+  </div>
+</section>
+
+<!-- ── Page body ── -->
+<div class="page-body">
+
+  <!-- Left: data note -->
+  <div class="sidebar">
+    <div class="note-panel">
+      <div class="note-title">Data Query &amp; Calculation</div>
+      <div class="note-body">
+        <p><strong>% Completed Within 7 Days</strong><br>
+          = WOs completed ≤ 7 days / total completed WOs</p>
+        <p><strong>Days to Complete</strong><br>
+          = Completed Date − Initiated Date (per WO)</p>
+        <p><strong>Flag</strong><br>
+          ≤ 7 days → Within 7 Days<br>
+          &gt; 7 days → After 7 Days</p>
+        <p><strong>Source</strong><br>
+          Nightly work-order extract from the operational data warehouse</p>
+        <p><strong>Filters Applied</strong><br>
+          activity code = leak repair<br>
+          cancelled work orders excluded<br>
+          responsibility IN (WRContract, WRepair)</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Main column -->
+  <div class="main-col">
+
+    <!-- Combo chart -->
+    <div class="chart-panel">
+      <div class="panel-title">Leak Repair WO Performance</div>
+      <div class="chart-wrap"><canvas id="leak-chart"></canvas></div>
+      <div class="chart-legend">
+        <div class="legend-item"><div class="legend-box" style="background:#118DFF"></div>Incoming WOs</div>
+        <div class="legend-item"><div class="legend-box" style="background:#E66C37"></div>Completed WOs</div>
+        <div class="legend-item"><div class="legend-line" style="background:#E044A7"></div>% Within 7 Days</div>
+      </div>
+    </div>
+
+    <!-- Bottom row: KPI card + detail table -->
+    <div class="bottom-row">
+
+      <div class="b-panel kpi-pane">
+        <div class="panel-title">Performance</div>
+        <div class="b-panel-body" id="kpi-card"></div>
+      </div>
+
+      <div class="b-panel tbl-pane">
+        <div class="panel-title">WO Detail <span id="tbl-count" style="font-weight:400;font-size:8pt"></span></div>
+        <div class="tbl-scroll">
+          <table class="dtbl" id="wo-tbl"></table>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function parseLocalDate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function monthKey(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth()+1).padStart(2,'0')}`;
+}
+
+function buildSpine(start, end) {
+  const months = [];
+  const d = new Date(start.getFullYear(), start.getMonth(), 1);
+  const last = new Date(end.getFullYear(), end.getMonth(), 1);
+  while (d <= last) { months.push(new Date(d)); d.setMonth(d.getMonth()+1); }
+  return months;
+}
+
+function fmtDate(s) {
+  if (!s) return '';
+  return new Date(s).toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+}
+
+function fmtMonthLabel(dt) {
+  return dt.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+const DET_LIMIT = 200;
+
+// ── Pre-process rows ──────────────────────────────────────────────────────────
+DATA_LEAK.rows.forEach(r => {
+  r._initDt   = r.initdttm      ? new Date(r.initdttm)      : null;
+  r._compDt   = r.completed_date ? new Date(r.completed_date) : null;
+  r._initMk   = r._initDt  ? monthKey(r._initDt)  : null;
+  r._compMk   = r._compDt  ? monthKey(r._compDt)  : null;
+});
+
+// ── Slicer state ──────────────────────────────────────────────────────────────
+let startDt = parseLocalDate('2024-07-01');
+let endDt   = parseLocalDate('2026-03-31');
+
+// ── Filter helpers ────────────────────────────────────────────────────────────
+function inRange(dt, s, e) {
+  if (!dt) return false;
+  const endEx = new Date(e); endEx.setDate(endEx.getDate() + 1);
+  return dt >= s && dt < endEx;
+}
+
+function filteredByComp() {
+  return DATA_LEAK.rows.filter(r => r._compDt && inRange(r._compDt, startDt, endDt));
+}
+
+function initiatedInRange() {
+  return DATA_LEAK.rows.filter(r => r._initDt && inRange(r._initDt, startDt, endDt));
+}
+
+// ── KPI computation ───────────────────────────────────────────────────────────
+function computeKPI() {
+  const comp    = filteredByComp();
+  const total   = comp.length;
+  const within7 = comp.filter(r => r.DaysToComplete != null && r.DaysToComplete <= 7).length;
+  const pct     = total > 0 ? within7 / total : 0;
+  const initRows = initiatedInRange();
+  const allDays  = comp.filter(r => r.DaysToComplete != null).map(r => r.DaysToComplete);
+  const avgDays  = allDays.length > 0 ? allDays.reduce((s,v) => s+v, 0) / allDays.length : null;
+  return { total, within7, pct, initiated: initRows.length, avgDays };
+}
+
+// ── Stat badges ───────────────────────────────────────────────────────────────
+function updateStats(k) {
+  document.getElementById('stat-initiated').textContent = k.initiated.toLocaleString();
+  document.getElementById('stat-completed').textContent = k.total.toLocaleString();
+  document.getElementById('stat-avg').textContent = k.avgDays != null ? k.avgDays.toFixed(1) : '-';
+}
+
+// ── KPI card ──────────────────────────────────────────────────────────────────
+function renderKPI(k) {
+  const color   = k.pct >= 0.9 ? '#0f6d39' : '#d93025';
+  const status  = k.pct >= 0.9 ? 'meeting or above target' : 'below target';
+  const variance = k.pct - 0.9;
+  const varTxt  = (variance >= 0 ? '+' : '') + (variance * 100).toFixed(1) + '%';
+  const pctTxt  = Math.round(k.pct * 100) + '%';
+  const barW    = Math.min(100, k.pct * 100).toFixed(1);
+  document.getElementById('kpi-card').innerHTML = `
+    <div class="card">
+      <div class="title">
+        <div>Average Water Leak Repair Completed in 7 Days</div>
+        <div class="status-dot" style="background:${color}"></div>
+      </div>
+      <div class="value">${pctTxt}</div>
+      <div class="bar-bg"><div class="bar-fill" style="background:${color};width:${barW}%"></div></div>
+      <div class="subtitle">Goal: 90% of leak repairs completed within 7 days</div>
+      <div class="formula">
+        ${k.within7.toLocaleString()} of ${k.total.toLocaleString()} completed WOs closed within 7 days (${pctTxt}).<br>
+        Performance is <strong style="color:${color}">${status}</strong> by <strong>${varTxt}</strong> versus the target.
+      </div>
+    </div>`;
+}
+
+// ── Detail table ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const rows = filteredByComp()
+    .filter(r => r.DaysToComplete != null)
+    .sort((a,b) => b.DaysToComplete - a.DaysToComplete)
+    .slice(0, DET_LIMIT);
+  const allComp = filteredByComp().length;
+  document.getElementById('tbl-count').textContent =
+    allComp > DET_LIMIT ? `(showing ${DET_LIMIT} of ${allComp.toLocaleString()})` : `(${allComp.toLocaleString()})`;
+  let html = `<thead><tr>
+    <th>WO ID</th><th>Init. Date</th><th>Compl. Date</th>
+    <th>Days</th><th>Responsibility</th><th>District</th>
+  </tr></thead><tbody>`;
+  for (const r of rows) {
+    const cls = r.DaysToComplete <= 7 ? 'c-pass' : 'c-fail';
+    html += `<tr>
+      <td>${r.actkey ?? ''}</td>
+      <td>${fmtDate(r.initdttm)}</td>
+      <td>${fmtDate(r.completed_date)}</td>
+      <td class="${cls}">${r.DaysToComplete != null ? r.DaysToComplete.toFixed(1) : ''}</td>
+      <td>${r.responsibility ?? ''}</td>
+      <td>${r.district ?? ''}</td>
+    </tr>`;
+  }
+  document.getElementById('wo-tbl').innerHTML = html + '</tbody>';
+}
+
+// ── Combo chart ───────────────────────────────────────────────────────────────
+const lineLabels = {
+  id: 'lineLabels',
+  afterDatasetDraw(chart, args) {
+    if (args.index !== 2) return;
+    const { ctx } = chart;
+    const meta = chart.getDatasetMeta(2);
+    ctx.save();
+    ctx.font = 'bold 9px Arial'; ctx.fillStyle = '#E044A7';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
+    meta.data.forEach((pt, i) => {
+      const v = chart.data.datasets[2].data[i];
+      if (v == null) return;
+      ctx.fillText(Math.round(v * 100) + '%', pt.x, pt.y - 3);
+    });
+    ctx.restore();
+  }
+};
+
+let leakChart = null;
+
+function buildChart() {
+  const spine = buildSpine(startDt, endDt);
+  const labels = spine.map(m => fmtMonthLabel(m));
+
+  const incomingMap = {}, completedMap = {}, within7Map = {};
+  DATA_LEAK.rows.forEach(r => {
+    if (r._initDt && inRange(r._initDt, startDt, endDt) && r._initMk) {
+      incomingMap[r._initMk] = (incomingMap[r._initMk] || 0) + 1;
+    }
+  });
+  filteredByComp().forEach(r => {
+    if (!r._compMk) return;
+    completedMap[r._compMk] = (completedMap[r._compMk] || 0) + 1;
+    if (r.DaysToComplete != null && r.DaysToComplete <= 7)
+      within7Map[r._compMk] = (within7Map[r._compMk] || 0) + 1;
+  });
+
+  const incoming   = spine.map(m => incomingMap[monthKey(m)] || 0);
+  const completed  = spine.map(m => completedMap[monthKey(m)] || 0);
+  const pctLine    = spine.map(m => {
+    const mk = monthKey(m);
+    const c = completedMap[mk] || 0;
+    const w = within7Map[mk]  || 0;
+    return c > 0 ? w / c : null;
+  });
+
+  if (leakChart) leakChart.destroy();
+  leakChart = new Chart(document.getElementById('leak-chart'), {
+    type: 'bar',
+    plugins: [lineLabels],
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Incoming WOs', data: incoming,
+          backgroundColor: 'rgba(17,141,255,0.75)', borderColor: '#118DFF', borderWidth: 1,
+          yAxisID: 'y',
+        },
+        {
+          label: 'Completed WOs', data: completed,
+          backgroundColor: 'rgba(230,108,55,0.75)', borderColor: '#E66C37', borderWidth: 1,
+          yAxisID: 'y',
+        },
+        {
+          type: 'line',
+          label: '% Within 7 Days', data: pctLine,
+          borderColor: '#E044A7', backgroundColor: 'transparent',
+          pointBackgroundColor: '#E044A7', pointRadius: 4, borderWidth: 2.5,
+          tension: 0, spanGaps: false, yAxisID: 'y2',
+        }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      layout: { padding: { top: 18 } },
+      scales: {
+        y: {
+          title: { display: true, text: 'Repair WO Count', color: '#b4c0d0', font: { size: 10 } },
+          ticks: { color: '#b4c0d0', font: { size: 10 } },
+          grid:  { color: 'rgba(139,175,214,0.12)' },
+        },
+        y2: {
+          position: 'right', min: 0, max: 1,
+          ticks: { callback: v => Math.round(v*100)+'%', color: '#E044A7', font: { size: 10 } },
+          grid:  { drawOnChartArea: false },
+        },
+        x: {
+          ticks: { color: '#b4c0d0', font: { size: 9 }, maxRotation: 45 },
+          grid:  { color: 'rgba(139,175,214,0.08)' },
+        }
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: ctx => {
+              const v = ctx.parsed.y;
+              if (v == null) return '';
+              return ctx.datasetIndex === 2
+                ? ` % Within 7 Days: ${Math.round(v*100)}%`
+                : ` ${ctx.dataset.label}: ${v.toLocaleString()}`;
+            }
+          }
+        }
+      }
+    }
+  });
+}
+
+// ── Last Update ───────────────────────────────────────────────────────────────
+function updateLastUpdate() {
+  let maxDt = null;
+  DATA_LEAK.rows.forEach(r => {
+    if (r._initDt && (!maxDt || r._initDt > maxDt)) maxDt = r._initDt;
+  });
+  document.getElementById('last-update').textContent =
+    maxDt ? maxDt.toLocaleDateString('en-US') : '-';
+}
+
+// ── Render all ────────────────────────────────────────────────────────────────
+function renderAll() {
+  const k = computeKPI();
+  updateStats(k);
+  renderKPI(k);
+  renderTable();
+  buildChart();
+}
+
+// ── Wire date inputs ──────────────────────────────────────────────────────────
+document.getElementById('dt-start').addEventListener('change', e => {
+  startDt = parseLocalDate(e.target.value); renderAll();
+});
+document.getElementById('dt-end').addEventListener('change', e => {
+  endDt = parseLocalDate(e.target.value); renderAll();
+});
+
+updateLastUpdate();
+renderAll();
+</script>
+</body>
+</html>

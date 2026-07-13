@@ -1,0 +1,1195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Active Repair Work Orders</title>
+<link rel="stylesheet" href="styles.css">
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<style>
+/* ── Page chrome ── */
+html, body { height: 100%; overflow: hidden; margin: 0; display: flex; flex-direction: column; }
+
+.page-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ── 3-column main grid ── */
+.main-grid {
+  display: grid;
+  grid-template-columns: 18fr 16fr 66fr;
+  gap: 8px;
+  padding: 8px 12px 10px;
+  flex: 1;
+  min-height: 0;
+}
+
+/* ── Left info panel ── */
+.info-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+}
+
+.info-desc-card {
+  flex: 1;
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow-y: auto;
+}
+
+.info-desc-title {
+  background: #001E60;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 7px 8px;
+  border-radius: 9px 9px 0 0;
+}
+
+.info-desc-body {
+  padding: 10px 12px;
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text);
+}
+
+.info-desc-body ul {
+  margin: 8px 0 0 0;
+  padding-left: 18px;
+}
+
+.info-desc-body li {
+  margin-bottom: 4px;
+}
+
+.info-updated {
+  font-size: 10px;
+  font-style: italic;
+  color: var(--muted);
+  padding: 2px 4px;
+}
+
+/* ── Controls panel (slicers + KPI cards) ── */
+.controls-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.slicer-card {
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.slicer-title {
+  background: #001E60;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: center;
+  padding: 6px 8px;
+}
+
+.slicer-body {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.slicer-body label {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.slicer-body input[type="date"] {
+  width: 100%;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: 1px solid rgba(108,143,186,0.36);
+  background: #102032;
+  color: var(--text);
+  font-size: 11px;
+}
+
+.slicer-btn-row {
+  display: flex;
+  gap: 6px;
+  padding: 6px 10px 8px;
+}
+
+.slicer-btn {
+  flex: 1;
+  padding: 4px 0;
+  border-radius: 6px;
+  border: 1px solid rgba(93,168,255,0.3);
+  background: rgba(93,168,255,0.12);
+  color: var(--text);
+  font-size: 10px;
+  cursor: pointer;
+}
+
+.slicer-btn:hover { background: rgba(93,168,255,0.22); }
+
+/* Dropdown slicer */
+.dropdown-wrap { position: relative; padding: 8px 10px; }
+
+.dropdown-btn {
+  width: 100%;
+  padding: 6px 10px;
+  background: #102032;
+  border: 1px solid rgba(108,143,186,0.36);
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: left;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dropdown-list {
+  display: none;
+  position: absolute;
+  z-index: 100;
+  left: 10px;
+  right: 10px;
+  top: 100%;
+  background: #162436;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  max-height: 180px;
+  overflow-y: auto;
+}
+
+.dropdown-list.open { display: block; }
+
+.dropdown-list li {
+  list-style: none;
+  padding: 5px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text);
+}
+
+.dropdown-list li:hover { background: rgba(93,168,255,0.1); }
+
+.dropdown-list li input[type="checkbox"] {
+  accent-color: #5da8ff;
+  pointer-events: none;
+}
+
+/* KPI Cards */
+.kpi-card {
+  flex-shrink: 0;
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  border: 1px solid #1F275C;
+  border-radius: 10px;
+  box-shadow: 0 0 12px rgba(31,39,92,0.4);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-title {
+  background: #001E60;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 11px;
+  font-weight: 400;
+  text-align: center;
+  padding: 6px 8px;
+}
+
+.kpi-value {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 26px;
+  font-weight: 700;
+  color: #5db8ff;
+  padding: 8px;
+  font-family: Arial, sans-serif;
+}
+
+/* ── Charts area ── */
+.charts-area {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-height: 0;
+}
+
+.charts-top-row {
+  display: grid;
+  grid-template-columns: 60fr 40fr;
+  gap: 8px;
+  flex: 1;
+  min-height: 0;
+}
+
+.chart-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  border: 1px solid #1F275C;
+  border-radius: 10px;
+  box-shadow: 0 0 12px rgba(31,39,92,0.35);
+  overflow: hidden;
+}
+
+.chart-title {
+  background: #001E60;
+  color: #fff;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 400;
+  text-align: center;
+  padding: 7px 8px;
+  flex-shrink: 0;
+}
+
+.chart-body {
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  position: relative;
+}
+
+.chart-body canvas {
+  display: block;
+}
+
+#weekly-wrap {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+#weekly-wrap canvas {
+  flex: 1;
+  min-height: 0;
+  width: 100% !important;
+}
+
+.chart-scrollbar {
+  height: 16px;
+  flex-shrink: 0;
+  overflow-x: scroll;
+  overflow-y: hidden;
+  scrollbar-gutter: stable;
+}
+
+.chart-scrollbar > div {
+  height: 1px;
+}
+</style>
+</head>
+<body>
+
+<!-- ── Topbar ── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">Water Utility Operations</h1>
+      <p style="margin:3px 0 0;font-size:13px;">Active Repair Work Orders</p>
+    </div>
+  </div>
+  <div class="topbar-actions">
+    <span id="last-updated" class="muted" style="font-size:12px;font-style:italic;"></span>
+    <button class="topbar-btn" onclick="resetFilters()" style="height:36px;font-size:13px;">Reset Filters</button>
+  </div>
+</div>
+
+<!-- ── Page body ── -->
+<div class="page-body">
+  <div class="main-grid">
+
+    <!-- ── LEFT: Info panel ── -->
+    <div class="info-panel">
+      <div class="info-desc-card">
+        <div class="info-desc-title">Active Repair Work Orders</div>
+        <div class="info-desc-body">
+          This dashboard shows the number of work orders for repairs. Work orders can consist of more than just water leaks - they also include repairs on a water line, a damaged asset, fire hydrants and valves that are not working. The charts show the number of work orders created and closed. Repairs are prioritized in the following order:
+          <ul>
+            <li>Healthcare systems and schools without water or experiencing low pressure.</li>
+            <li>Water leaks causing major ponding on major thoroughfares.</li>
+            <li>High-volume water leaks, leaking 250 gallons per minute or more.</li>
+            <li>All other leaks.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="info-updated" id="footer-updated"></div>
+    </div>
+
+    <!-- ── MIDDLE: Slicers + KPI cards ── -->
+    <div class="controls-panel">
+
+      <!-- Date slicer -->
+      <div class="slicer-card">
+        <div class="slicer-title">Report Time Range</div>
+        <div class="slicer-body">
+          <label>From<input type="date" id="start-date" onchange="renderAll()"></label>
+          <label>To<input type="date" id="end-date" onchange="renderAll()"></label>
+        </div>
+        <div class="slicer-btn-row">
+          <button class="slicer-btn" onclick="setRelative(14)">Last 14 Days</button>
+          <button class="slicer-btn" onclick="setRelative(30)">Last 30 Days</button>
+          <button class="slicer-btn" onclick="setRelativeMonths(14)">Last 14 Months</button>
+        </div>
+      </div>
+
+      <!-- Council Districts slicer -->
+      <div class="slicer-card">
+        <div class="slicer-title">Council Districts</div>
+        <div class="dropdown-wrap" id="cd-wrap">
+          <button class="dropdown-btn" id="cd-btn" onclick="toggleDropdown()">
+            <span id="cd-label">All Districts</span>
+            <span>▾</span>
+          </button>
+          <ul class="dropdown-list" id="cd-list"></ul>
+        </div>
+      </div>
+
+      <!-- KPI: Daily Avg Opened -->
+      <div class="kpi-card">
+        <div class="kpi-title">Daily Average Work Orders Opened</div>
+        <div class="kpi-value" id="kpi-daily-open">-</div>
+      </div>
+
+      <!-- KPI: Daily Avg Closed -->
+      <div class="kpi-card">
+        <div class="kpi-title">Daily Average Work Orders Closed</div>
+        <div class="kpi-value" id="kpi-daily-close">-</div>
+      </div>
+
+      <!-- KPI: Weekly Avg Opened -->
+      <div class="kpi-card">
+        <div class="kpi-title">Weekly Average Work Orders Opened</div>
+        <div class="kpi-value" id="kpi-weekly-open">-</div>
+      </div>
+
+      <!-- KPI: Weekly Avg Closed -->
+      <div class="kpi-card">
+        <div class="kpi-title">Weekly Average Work Orders Closed</div>
+        <div class="kpi-value" id="kpi-weekly-close">-</div>
+      </div>
+
+      <!-- KPI: Total Active (not date-filtered) -->
+      <div class="kpi-card">
+        <div class="kpi-title">Total Active Work Orders</div>
+        <div class="kpi-value" id="kpi-total-active">-</div>
+      </div>
+
+    </div><!-- end controls-panel -->
+
+    <!-- ── RIGHT: Charts ── -->
+    <div class="charts-area">
+
+      <!-- Top row: Annual + Weekly side by side -->
+      <div class="charts-top-row">
+
+        <div class="chart-panel">
+          <div class="chart-title">Daily Work Orders Opened/Closed</div>
+          <div class="chart-body" id="annual-wrap">
+            <canvas id="annual-chart"></canvas>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-title">Weekly Work Orders Opened/Closed</div>
+          <div class="chart-body" id="weekly-wrap">
+            <canvas id="weekly-chart"></canvas>
+            <div class="chart-scrollbar" id="weekly-scrollbar"><div id="weekly-scroll-content"></div></div>
+          </div>
+        </div>
+
+      </div><!-- end charts-top-row -->
+
+      <!-- Bottom: Cumulative backlog line -->
+      <div class="chart-panel" style="flex:1;min-height:0;">
+        <div class="chart-title">Active Work Orders (Cumulative)</div>
+        <div class="chart-body" id="backlog-wrap">
+          <canvas id="backlog-chart"></canvas>
+        </div>
+      </div>
+
+    </div><!-- end charts-area -->
+
+  </div><!-- end main-grid -->
+</div><!-- end page-body -->
+
+<script>
+// ── Guard ───────────────────────────────────────────────────────────────────
+if (typeof window.DATA === 'undefined') {
+  document.body.innerHTML = '<div style="padding:40px;color:#f88;font-size:18px;">' +
+    '<b>data.js not found.</b><br>Run <code>python3 generate_sample_data.py</code> first, ' +
+    'then open this file again.</div>';
+  throw new Error('data.js missing');
+}
+
+// ── State ────────────────────────────────────────────────────────────────────
+let startDate, endDate;
+let selectedCDs = new Set(); // empty = ALL
+
+// ── Date helpers ─────────────────────────────────────────────────────────────
+function parseDate(s) {
+  if (!s) return null;
+  const p = s.split('-');
+  return new Date(+p[0], +p[1] - 1, +p[2]);
+}
+
+function fmtDate(d) {
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function dateOnly(d) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+}
+
+function today() { return dateOnly(new Date()); }
+
+function latestDataDate() {
+  const dates = [];
+  window.DATA.rows.forEach(r => {
+    if (r.i) dates.push(r.i);
+    if (r.v) dates.push(r.v);
+    if (r.c) dates.push(r.c);
+  });
+  dates.sort();
+  return dates.length ? parseDate(dates[dates.length - 1]) : today();
+}
+
+// ── Slicer helpers ───────────────────────────────────────────────────────────
+function setRelative(days) {
+  const e = latestDataDate();
+  const s = new Date(e);
+  s.setDate(e.getDate() - days + 1);
+  document.getElementById('start-date').value = fmtDate(s);
+  document.getElementById('end-date').value   = fmtDate(e);
+  startDate = s; endDate = e;
+  renderAll();
+}
+
+function setRelativeMonths(months) {
+  const e = today();
+  const s = new Date(e);
+  s.setMonth(e.getMonth() - months);
+  s.setDate(s.getDate() + 1);
+  document.getElementById('start-date').value = fmtDate(s);
+  document.getElementById('end-date').value   = fmtDate(e);
+  startDate = s; endDate = e;
+  renderAll();
+}
+
+function syncDates() {
+  startDate = parseDate(document.getElementById('start-date').value) || today();
+  endDate   = parseDate(document.getElementById('end-date').value)   || today();
+}
+
+function daysInRange() {
+  return Math.max(1, Math.round((endDate - startDate) / 864e5) + 1);
+}
+
+function weeksInRange() {
+  const d = daysInRange();
+  return Math.ceil(d / 7) || 1;
+}
+
+// ── Council Districts dropdown ────────────────────────────────────────────────
+function buildCDDropdown() {
+  const cds = window.DATA.councilDistricts || [];
+  const list = document.getElementById('cd-list');
+  list.innerHTML = '';
+
+  // "Select All" item
+  const allLi = document.createElement('li');
+  allLi.innerHTML = '<input type="checkbox" id="cd-all" checked> All Districts';
+  allLi.addEventListener('click', e => {
+    e.preventDefault();
+    selectedCDs.clear();
+    syncCDCheckboxes();
+    renderAll();
+  });
+  list.appendChild(allLi);
+
+  cds.forEach(cd => {
+    const li = document.createElement('li');
+    li.dataset.cd = cd;
+    li.innerHTML = `<input type="checkbox" checked> ${cd}`;
+    li.addEventListener('click', e => {
+      e.preventDefault();
+      if (selectedCDs.has(cd)) selectedCDs.delete(cd);
+      else selectedCDs.add(cd);
+      if (selectedCDs.size === cds.length) selectedCDs.clear();
+      syncCDCheckboxes();
+      renderAll();
+    });
+    list.appendChild(li);
+  });
+}
+
+function syncCDCheckboxes() {
+  const cds = window.DATA.councilDistricts || [];
+  const allChecked = selectedCDs.size === 0;
+  document.getElementById('cd-all').checked = allChecked;
+  document.querySelectorAll('#cd-list li[data-cd]').forEach(li => {
+    li.querySelector('input').checked = allChecked || selectedCDs.has(li.dataset.cd);
+  });
+  const label = document.getElementById('cd-label');
+  label.textContent = allChecked ? 'All Districts' :
+    (selectedCDs.size === 1 ? [...selectedCDs][0] : `${selectedCDs.size} selected`);
+}
+
+function toggleDropdown() {
+  document.getElementById('cd-list').classList.toggle('open');
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#cd-wrap')) {
+    document.getElementById('cd-list').classList.remove('open');
+  }
+});
+
+// ── Data filtering ────────────────────────────────────────────────────────────
+function cdMatch(r) {
+  return selectedCDs.size === 0 || selectedCDs.has(r.cd);
+}
+
+function filteredByCD() {
+  return window.DATA.rows.filter(cdMatch);
+}
+
+function filteredOpened() {
+  // rows where initDate in [start, end] and cd matches
+  return window.DATA.rows.filter(r => {
+    if (!cdMatch(r)) return false;
+    if (!r.i) return false;
+    const d = parseDate(r.i);
+    return d >= startDate && d <= endDate;
+  });
+}
+
+function filteredClosed() {
+  // rows where vCompletedDate in [start, end] and cd matches
+  return window.DATA.rows.filter(r => {
+    if (!cdMatch(r)) return false;
+    if (!r.v) return false;
+    const d = parseDate(r.v);
+    return d >= startDate && d <= endDate;
+  });
+}
+
+// ── KPI calculations ──────────────────────────────────────────────────────────
+function updateKPIs() {
+  const opened = filteredOpened();
+  const closed  = filteredClosed();
+  const days    = daysInRange();
+  const weeks   = weeksInRange();
+
+  const dailyOpen  = (opened.length / days).toFixed(1);
+  const dailyClose = (closed.length  / days).toFixed(1);
+  const wkOpen  = (opened.length / weeks).toFixed(1);
+  const wkClose = (closed.length  / weeks).toFixed(1);
+
+  // Total active: NOT date-filtered; rows where completedDate is null, CD-filtered
+  const cdRows    = filteredByCD();
+  const totalOpen = cdRows.filter(r => r.i && !r.c).length;
+
+  document.getElementById('kpi-daily-open').textContent  = dailyOpen;
+  document.getElementById('kpi-daily-close').textContent = dailyClose;
+  document.getElementById('kpi-weekly-open').textContent  = wkOpen;
+  document.getElementById('kpi-weekly-close').textContent = wkClose;
+  document.getElementById('kpi-total-active').textContent = totalOpen.toLocaleString();
+}
+
+// ── Top-label plugin (bars) ───────────────────────────────────────────────────
+const topLabelPlugin = {
+  id: 'topLabel',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds, di) => {
+      if (ds.skipLabels) return;
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      const visiblePoints = meta.data.filter((bar, i) => ds.data[i] != null && ds.data[i] !== 0);
+      const maxLabels = ds.maxLabels || 28;
+      const minGap = ds.minLabelGap || (visiblePoints.length > 80 ? 34 : 22);
+      let lastX = -Infinity;
+      const values = ds.data.filter(v => v != null && v !== 0);
+      const maxVal = values.length ? Math.max(...values) : 0;
+      meta.data.forEach((bar, i) => {
+        const v = ds.data[i];
+        if (v == null || v === 0) return;
+        const isEndpoint = i === 0 || i === ds.data.length - 1;
+        const isPeak = maxVal > 0 && v >= maxVal * 0.82;
+        const spaced = bar.x - lastX >= minGap;
+        const sparse = visiblePoints.length <= maxLabels || isEndpoint || isPeak || spaced;
+        if (!sparse) return;
+        ctx.save();
+        ctx.fillStyle = '#e0eaff';
+        ctx.font = '700 9px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(v.toLocaleString(), bar.x, bar.y - 4);
+        ctx.restore();
+        lastX = bar.x;
+      });
+    });
+  }
+};
+
+function linearTrend(values) {
+  const pts = values
+    .map((y, x) => ({ x, y }))
+    .filter(p => p.y != null);
+  if (pts.length < 2) return values.map(() => null);
+  const n = pts.length;
+  const sumX = pts.reduce((a, p) => a + p.x, 0);
+  const sumY = pts.reduce((a, p) => a + p.y, 0);
+  const sumXY = pts.reduce((a, p) => a + p.x * p.y, 0);
+  const sumXX = pts.reduce((a, p) => a + p.x * p.x, 0);
+  const denom = n * sumXX - sumX * sumX;
+  if (!denom) return values.map(() => null);
+  const slope = (n * sumXY - sumX * sumY) / denom;
+  const intercept = (sumY - slope * sumX) / n;
+  return values.map((_, x) => intercept + slope * x);
+}
+
+function monthTickLabel(value) {
+  const d = parseDate(value);
+  if (!d) return '';
+  const month = d.getMonth();
+  const day = d.getDate();
+  const monthsShown = Math.max(1, (endDate.getFullYear() - startDate.getFullYear()) * 12 + endDate.getMonth() - startDate.getMonth() + 1);
+  const step = monthsShown > 18 ? 3 : monthsShown > 8 ? 2 : 1;
+  if (day !== 1 && value !== fmtDate(startDate) && value !== fmtDate(endDate)) return '';
+  if (month % step !== 0 && value !== fmtDate(startDate) && value !== fmtDate(endDate)) return '';
+  return d.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+}
+
+// ── Daily chart ───────────────────────────────────────────────────────────────
+let dailyChart = null;
+
+function buildDaily() {
+  const opened = filteredOpened();
+  const closed  = filteredClosed();
+
+  // Count per individual date
+  const byDayOpen  = {};
+  const byDayClose = {};
+  opened.forEach(r => { byDayOpen[r.i]  = (byDayOpen[r.i]  || 0) + 1; });
+  closed.forEach(r => { byDayClose[r.v] = (byDayClose[r.v] || 0) + 1; });
+
+  // Full date spine across the selected range
+  const labels = [];
+  const d = new Date(startDate);
+  while (d <= endDate) { labels.push(fmtDate(d)); d.setDate(d.getDate() + 1); }
+
+  const wrap   = document.getElementById('annual-wrap');
+  const canvas = document.getElementById('annual-chart');
+
+  const pw = wrap.offsetWidth || 400;
+  const canvasW = pw;
+  const openedData = labels.map(d => byDayOpen[d]  || 0);
+  const closedData = labels.map(d => byDayClose[d] || 0);
+
+  canvas.style.width  = canvasW + 'px';
+  canvas.style.height = (wrap.offsetHeight || 280) + 'px';
+  canvas.width  = canvasW;
+  canvas.height = wrap.offsetHeight || 280;
+
+  if (dailyChart) { dailyChart.destroy(); }
+  dailyChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Work Orders Opened',
+          data: openedData,
+          backgroundColor: '#688197',
+          borderColor: '#688197',
+          borderWidth: 1,
+          categoryPercentage: 0.82,
+          barPercentage: labels.length > 180 ? 1.0 : 0.9,
+          maxLabels: labels.length > 90 ? 18 : 32,
+        },
+        {
+          label: 'Work Orders Closed',
+          data: closedData,
+          backgroundColor: '#2a5fa8',
+          borderColor: '#2a5fa8',
+          borderWidth: 1,
+          categoryPercentage: 0.82,
+          barPercentage: labels.length > 180 ? 1.0 : 0.9,
+          maxLabels: labels.length > 90 ? 18 : 32,
+        },
+        {
+          type: 'line',
+          label: 'Opened Trend',
+          data: linearTrend(openedData),
+          borderColor: '#688197',
+          borderDash: [6, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          skipLabels: true,
+          order: 0,
+        },
+        {
+          type: 'line',
+          label: 'Closed Trend',
+          data: linearTrend(closedData),
+          borderColor: '#001E60',
+          borderDash: [6, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          skipLabels: true,
+          order: 0,
+        },
+      ],
+    },
+    plugins: [topLabelPlugin],
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: '#b4c0d0',
+            font: { size: 11 },
+            filter: item => !item.text.includes('Trend'),
+          },
+        },
+        tooltip: {
+          filter: ctx => !ctx.dataset.label.includes('Trend'),
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#8a9bb0',
+            font: { size: 8 },
+            maxRotation: 0,
+            autoSkip: false,
+            callback: function(value) {
+              return monthTickLabel(this.getLabelForValue(value));
+            },
+          },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+        },
+        y: {
+          ticks: { color: '#8a9bb0', font: { size: 9 } },
+          grid: { color: 'rgba(255,255,255,0.08)' },
+          title: { display: true, text: 'Work Orders Count', color: '#8a9bb0', font: { size: 9 } },
+        },
+      },
+    },
+  });
+}
+
+// ── Weekly chart ──────────────────────────────────────────────────────────────
+let weeklyChart = null;
+let weeklyFull = null;
+let weeklyScrollRaf = null;
+
+function getUSWeekStart(dt) {
+  const d = new Date(dt.getFullYear(), dt.getMonth(), dt.getDate());
+  d.setDate(d.getDate() - d.getDay()); // Sunday
+  return d;
+}
+
+function weekLabel(dt) {
+  const ws = getUSWeekStart(dt);
+  const we = new Date(ws); we.setDate(ws.getDate() + 6);
+  const f = d => `${String(d.getMonth()+1).padStart(2,'0')}/${String(d.getDate()).padStart(2,'0')}/${d.getFullYear()}`;
+  return `${f(ws)} - ${f(we)}`;
+}
+
+function buildWeekly() {
+  const opened = filteredOpened();
+  const closed = filteredClosed();
+  const wOpen = {}, wClose = {};
+
+  opened.forEach(r => {
+    const lbl = weekLabel(parseDate(r.i));
+    wOpen[lbl] = (wOpen[lbl] || 0) + 1;
+  });
+  closed.forEach(r => {
+    const lbl = weekLabel(parseDate(r.v));
+    wClose[lbl] = (wClose[lbl] || 0) + 1;
+  });
+
+  const weeks = [];
+  const wk = getUSWeekStart(startDate);
+  while (wk <= endDate) {
+    weeks.push(weekLabel(wk));
+    wk.setDate(wk.getDate() + 7);
+  }
+
+  const wrap = document.getElementById('weekly-wrap');
+  const scrollbar = document.getElementById('weekly-scrollbar');
+  const scrollContent = document.getElementById('weekly-scroll-content');
+  const minItemW = 88;
+  const pw = wrap.clientWidth || wrap.offsetWidth || 300;
+  const visibleCount = Math.max(4, Math.floor((pw - 60) / minItemW));
+
+  const openedData = weeks.map(w => wOpen[w] || 0);
+  const closedData = weeks.map(w => wClose[w] || 0);
+  weeklyFull = {
+    weeks,
+    openedData,
+    closedData,
+    openedTrend: linearTrend(openedData),
+    closedTrend: linearTrend(closedData),
+    visibleCount,
+  };
+
+  scrollContent.style.width = Math.max(pw, weeks.length * minItemW + 60) + 'px';
+  if (!scrollbar.dataset.bound) {
+    scrollbar.addEventListener('scroll', () => {
+      if (weeklyScrollRaf) cancelAnimationFrame(weeklyScrollRaf);
+      weeklyScrollRaf = requestAnimationFrame(() => renderWeeklyViewport());
+    });
+    scrollbar.dataset.bound = 'true';
+  }
+
+  scrollbar.scrollLeft = scrollbar.scrollWidth - scrollbar.clientWidth;
+  renderWeeklyViewport();
+}
+
+function renderWeeklyViewport() {
+  if (!weeklyFull) return;
+  const wrap = document.getElementById('weekly-wrap');
+  const canvas = document.getElementById('weekly-chart');
+  const scrollbar = document.getElementById('weekly-scrollbar');
+  const { weeks, openedData, closedData, openedTrend, closedTrend, visibleCount } = weeklyFull;
+  const maxStart = Math.max(0, weeks.length - visibleCount);
+  const maxScroll = Math.max(1, scrollbar.scrollWidth - scrollbar.clientWidth);
+  const startIndex = Math.min(maxStart, Math.max(0, Math.round((scrollbar.scrollLeft / maxScroll) * maxStart)));
+  const endIndex = Math.min(weeks.length, startIndex + visibleCount);
+  const visibleWeeks = weeks.slice(startIndex, endIndex);
+  const canvasW = wrap.clientWidth || 300;
+  const canvasH = Math.max(120, (wrap.clientHeight || 280) - 16);
+
+  canvas.style.width = canvasW + 'px';
+  canvas.style.height = canvasH + 'px';
+  canvas.width = canvasW;
+  canvas.height = canvasH;
+
+  if (weeklyChart) weeklyChart.destroy();
+  weeklyChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: visibleWeeks,
+      datasets: [
+        {
+          label: 'Work Orders Opened',
+          data: openedData.slice(startIndex, endIndex),
+          backgroundColor: '#688197',
+          borderColor: '#688197',
+          borderWidth: 1,
+          maxLabels: 18,
+          minLabelGap: 30,
+        },
+        {
+          label: 'Work Orders Closed',
+          data: closedData.slice(startIndex, endIndex),
+          backgroundColor: '#2a5fa8',
+          borderColor: '#2a5fa8',
+          borderWidth: 1,
+          maxLabels: 18,
+          minLabelGap: 30,
+        },
+        {
+          type: 'line',
+          label: 'Opened Trend',
+          data: openedTrend.slice(startIndex, endIndex),
+          borderColor: '#688197',
+          borderDash: [6, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          skipLabels: true,
+          order: 0,
+        },
+        {
+          type: 'line',
+          label: 'Closed Trend',
+          data: closedTrend.slice(startIndex, endIndex),
+          borderColor: '#001E60',
+          borderDash: [6, 5],
+          borderWidth: 2,
+          pointRadius: 0,
+          fill: false,
+          tension: 0,
+          skipLabels: true,
+          order: 0,
+        },
+      ],
+    },
+    plugins: [topLabelPlugin],
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          labels: {
+            color: '#b4c0d0',
+            font: { size: 10 },
+            filter: item => !item.text.includes('Trend'),
+          },
+        },
+        tooltip: {
+          filter: ctx => !ctx.dataset.label.includes('Trend'),
+          callbacks: { label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()}` },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#8a9bb0',
+            font: { size: 7 },
+            maxRotation: 45,
+            autoSkip: false,
+            callback: function(value, index) {
+              const label = this.getLabelForValue(value);
+              return visibleWeeks.length <= 8 || index % 2 === 0 || index === visibleWeeks.length - 1 ? label : '';
+            },
+          },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+        },
+        y: {
+          ticks: { color: '#8a9bb0', font: { size: 9 } },
+          grid: { color: 'rgba(255,255,255,0.08)' },
+          title: { display: true, text: 'Work Orders Count', color: '#8a9bb0', font: { size: 9 } },
+        },
+      },
+    },
+  });
+}
+
+// ── Cumulative backlog chart ─────────────────────────────────────────────────────────────────────────────
+let backlogChart = null;
+
+function buildBacklog() {
+  // Use ALL CD-filtered rows (not date-filtered) so the backlog reflects full history
+  const cdRows = filteredByCD();
+  const tod = today();
+
+  // Count initiated and closed per day (up to today)
+  const initMap = {}, closeMap = {};
+  cdRows.forEach(r => {
+    if (r.i) {
+      const d = parseDate(r.i);
+      if (d <= tod) {
+        initMap[r.i] = (initMap[r.i] || 0) + 1;
+      }
+    }
+    if (r.v) {
+      const d = parseDate(r.v);
+      if (d <= tod) {
+        closeMap[r.v] = (closeMap[r.v] || 0) + 1;
+      }
+    }
+  });
+
+  // Build date spine from min date to today
+  const allDays = new Set([...Object.keys(initMap), ...Object.keys(closeMap)]);
+  if (allDays.size === 0) {
+    if (backlogChart) { backlogChart.destroy(); backlogChart = null; }
+    return;
+  }
+  const sortedDays = [...allDays].sort();
+  const first = parseDate(sortedDays[0]);
+  const last  = tod;
+
+  // Build cumulative map for ALL dates
+  const cumMap = {};
+  let cum = 0;
+  const cur = new Date(first);
+  while (cur <= last) {
+    const s = fmtDate(cur);
+    cum += (initMap[s] || 0) - (closeMap[s] || 0);
+    cumMap[s] = cum;
+    cur.setDate(cur.getDate() + 1);
+  }
+
+  // Slice to user's date range for x-axis display
+  const labels = [], values = [];
+  const c2 = new Date(startDate);
+  while (c2 <= endDate && c2 <= tod) {
+    const s = fmtDate(c2);
+    labels.push(s);
+    values.push(cumMap[s] ?? null);
+    c2.setDate(c2.getDate() + 1);
+  }
+
+  const wrap   = document.getElementById('backlog-wrap');
+  const canvas = document.getElementById('backlog-chart');
+  const minItemW = 6;
+  const naturalW = (wrap.offsetWidth || 600) / Math.max(labels.length, 1);
+  const canvasW  = naturalW >= minItemW ? (wrap.offsetWidth || 600)
+                                        : labels.length * minItemW + 60;
+  canvas.style.width  = canvasW + 'px';
+  canvas.style.height = (wrap.offsetHeight || 260) + 'px';
+  canvas.width  = canvasW;
+  canvas.height = wrap.offsetHeight || 260;
+
+  // Data-label plugin for line chart (on points)
+  const lineDataLabelPlugin = {
+    id: 'lineDataLabel',
+    afterDatasetsDraw(chart) {
+      const ctx = chart.ctx;
+      const ds  = chart.data.datasets[0];
+      const meta = chart.getDatasetMeta(0);
+      // Only show labels if few points (< 30)
+      if (meta.data.length > 30) return;
+      meta.data.forEach((pt, i) => {
+        const v = ds.data[i];
+        if (v == null) return;
+        ctx.save();
+        ctx.fillStyle = '#e0eaff';
+        ctx.font = '700 9px Arial';
+        ctx.textAlign = 'center';
+        ctx.fillText(v.toLocaleString(), pt.x, pt.y - 8);
+        ctx.restore();
+      });
+    },
+  };
+
+  if (backlogChart) { backlogChart.destroy(); }
+  backlogChart = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [{
+        label: 'Active Repair Work Order',
+        data: values,
+        borderColor: '#53565A',
+        backgroundColor: 'rgba(83,86,90,0.15)',
+        borderWidth: 2,
+        pointRadius: labels.length <= 30 ? 3 : 0,
+        pointBackgroundColor: '#53565A',
+        fill: true,
+        tension: 0,
+        spanGaps: false,
+      }],
+    },
+    plugins: [lineDataLabelPlugin],
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { labels: { color: '#b4c0d0', font: { size: 11 } } },
+        tooltip: {
+          callbacks: {
+            label: ctx => `Active Work Orders: ${ctx.parsed.y != null ? ctx.parsed.y.toLocaleString() : '-'}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          ticks: {
+            color: '#8a9bb0',
+            font: { size: 8 },
+            maxRotation: 45,
+            autoSkip: true,
+            maxTicksLimit: 20,
+          },
+          grid: { color: 'rgba(255,255,255,0.06)' },
+        },
+        y: {
+          ticks: { color: '#8a9bb0', font: { size: 9 } },
+          grid: { color: 'rgba(255,255,255,0.08)' },
+          title: { display: true, text: 'Cumulative Active Repair Work Orders', color: '#8a9bb0', font: { size: 9 } },
+        },
+      },
+    },
+  });
+}
+
+// ── Reset ─────────────────────────────────────────────────────────────────────
+function resetFilters() {
+  selectedCDs.clear();
+  syncCDCheckboxes();
+  setRelative(14);
+}
+
+// ── Render all ───────────────────────────────────────────────────────────────
+function renderAll() {
+  syncDates();
+  updateKPIs();
+  buildDaily();
+  buildWeekly();
+  buildBacklog();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function init() {
+  // Last updated
+  const lu = window.DATA.lastUpdated || '';
+  if (lu) {
+    const txt = `Last Data Updated ${lu}`;
+    document.getElementById('last-updated').textContent = txt;
+    document.getElementById('footer-updated').textContent = txt;
+  }
+
+  // Build CD dropdown
+  buildCDDropdown();
+
+  // Set default date range: last 14 exported data days
+  const e = latestDataDate();
+  const s = new Date(e);
+  s.setDate(e.getDate() - 13);
+  document.getElementById('start-date').value = fmtDate(s);
+  document.getElementById('end-date').value   = fmtDate(e);
+  startDate = s; endDate = e;
+
+  renderAll();
+
+  // Re-render on window resize
+  window.addEventListener('resize', () => {
+    if (dailyChart)   { dailyChart.destroy();   dailyChart   = null; }
+    if (weeklyChart)  { weeklyChart.destroy();  weeklyChart  = null; }
+    if (backlogChart) { backlogChart.destroy(); backlogChart = null; }
+    renderAll();
+  });
+})();
+</script>
+</body>
+</html>

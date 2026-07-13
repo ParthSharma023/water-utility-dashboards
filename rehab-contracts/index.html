@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Rehab Contracts Performance</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    html, body {
+      height: 100%;
+      width: 100%;
+      min-width: 0;
+      overflow: hidden;
+    }
+
+    body { min-width: 0; }
+
+    .topbar {
+      width: 100%;
+      max-width: none;
+      height: 64px;
+      padding: 6px 12px;
+      box-sizing: border-box;
+      margin: 0;
+    }
+    .topbar h1 { letter-spacing: 0; }
+    .reset-btn {
+      width: auto;
+      margin-top: 0;
+      flex-shrink: 0;
+    }
+    /* ── Page body ───────────────────────────────────────────────────────── */
+    .page-body {
+      height: calc(100vh - 64px);
+      width: 100%;
+      max-width: none;
+      display: flex;
+      flex-direction: column;
+      padding: 6px 10px 8px;
+      overflow: hidden;
+      box-sizing: border-box;
+      gap: 6px;
+      margin: 0;
+    }
+
+    /* ── KPI row ─────────────────────────────────────────────────────────── */
+    .kpi-row {
+      display: flex;
+      gap: 6px;
+      flex-shrink: 0;
+      height: 56px;
+      margin-bottom: 0;
+    }
+    .kpi-card {
+      flex: 1;
+      height: 100%;
+      min-height: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.97),rgba(20,31,47,0.97));
+      border: 1px solid #1F275C;
+      border-radius: 6px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      padding: 4px 10px;
+    }
+    .kpi-title {
+      font-size: 9.5px;
+      font-weight: 600;
+      color: rgba(180,192,208,0.78);
+      text-align: center;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      white-space: nowrap;
+    }
+    .kpi-value {
+      font-size: 22px;
+      font-weight: 700;
+      color: #d0eaf7;
+      font-variant-numeric: tabular-nums;
+      line-height: 1.1;
+    }
+
+    /* ── 3-column content grid ───────────────────────────────────────────── */
+    .content-grid {
+      display: grid;
+      grid-template-columns: minmax(180px,13.5vw) minmax(0,39fr) minmax(0,47.5fr);
+      gap: 6px;
+      padding: 0;
+      flex: 1;
+      min-height: 0;
+    }
+    .content-grid > * { min-width: 0; min-height: 0; }
+
+    /* ── Left sidebar ────────────────────────────────────────────────────── */
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── Middle column ───────────────────────────────────────────────────── */
+    .middle-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    /* ── Right column ────────────────────────────────────────────────────── */
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      min-height: 0;
+      overflow: hidden;
+    }
+    .bottom-row {
+      flex: 300;
+      min-height: 190px;
+      display: grid;
+      grid-template-columns: minmax(0,285fr) minmax(0,282fr);
+      gap: 6px;
+    }
+    .bottom-row > * { min-width: 0; min-height: 0; }
+
+    /* ── Panel shell ─────────────────────────────────────────────────────── */
+    .panel {
+      background: linear-gradient(180deg,rgba(26,39,57,0.97),rgba(20,31,47,0.97));
+      border: 1px solid #1F275C;
+      border-radius: 6px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel-title {
+      background: #001E60;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-align: center;
+      padding: 5px 6px;
+      letter-spacing: 0.01em;
+      flex-shrink: 0;
+    }
+    .panel-chart-area {
+      flex: 1;
+      min-height: 0;
+      position: relative;
+      padding: 4px 8px 6px;
+    }
+
+    /* ── Slicer panels ───────────────────────────────────────────────────── */
+    .slicer-panel {
+      background: linear-gradient(180deg,rgba(26,39,57,0.97),rgba(20,31,47,0.97));
+      border: 1px solid #1F275C;
+      border-radius: 6px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .slicer-title {
+      background: #001E60;
+      color: #fff;
+      font-size: 10.5px;
+      font-weight: 700;
+      text-align: center;
+      padding: 5px 6px;
+      flex-shrink: 0;
+    }
+    .slicer-body {
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto;
+      padding: 4px 6px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.25) transparent;
+    }
+
+    /* Date slicer inputs */
+    .date-slicer-body {
+      padding: 8px 8px 6px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .date-row {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10.5px;
+      color: rgba(180,192,208,0.78);
+    }
+    .date-row span { width: 20px; text-align: right; }
+    .date-input {
+      flex: 1;
+      height: 24px;
+      padding: 0 5px;
+      border-radius: 5px;
+      border: 1px solid rgba(108,143,186,0.35);
+      background: #0d1b2a;
+      color: var(--text);
+      font: inherit;
+      font-size: 10px;
+    }
+    .date-input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; }
+
+    /* Checkbox items */
+    .sl-item {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 4px 4px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 10.5px;
+      color: rgba(180,192,208,0.88);
+      user-select: none;
+    }
+    .sl-item:hover { background: rgba(40,77,124,0.28); }
+    .sl-item.active { background: rgba(28,110,140,0.28); color: #d0eaf7; }
+    .sl-item input[type=checkbox] { pointer-events: none; accent-color: #118DFF; margin: 0; }
+
+    /* ── Detail table ────────────────────────────────────────────────────── */
+    .tbl-wrap {
+      flex: 1;
+      min-height: 0;
+      overflow: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.25) transparent;
+    }
+    .detail-tbl {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 9.5px;
+    }
+    .detail-tbl th {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background: rgba(18,30,52,0.98);
+      color: rgba(200,216,234,0.9);
+      font-weight: 700;
+      padding: 4px 5px;
+      border-bottom: 1px solid rgba(113,144,186,0.2);
+      white-space: nowrap;
+      text-align: left;
+    }
+    .detail-tbl td {
+      padding: 3px 5px;
+      border-bottom: 1px solid rgba(113,144,186,0.07);
+      color: rgba(170,195,218,0.85);
+      white-space: nowrap;
+      max-width: 110px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .detail-tbl tbody tr:nth-child(odd)  { background: rgba(20,34,52,0.75); }
+    .detail-tbl tbody tr:hover { background: rgba(40,77,124,0.42); }
+
+    /* ── Gauge ───────────────────────────────────────────────────────────── */
+    #gauge-wrap {
+      flex: 1;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 4px 8px 8px;
+      overflow: hidden;
+    }
+    #gauge-canvas { display: block; max-width: 100%; }
+    .gauge-spent  { font-size: 13px; font-weight: 700; color: #d0eaf7; margin: 2px 0 0; }
+    .gauge-max    { font-size: 10px; color: rgba(170,195,218,0.7); margin: 1px 0 0; }
+    .gauge-legend { display: flex; gap: 8px; margin-top: 4px; flex-wrap: wrap; justify-content: center; }
+    .gauge-leg-item { display: flex; align-items: center; gap: 4px; font-size: 9px; color: rgba(170,195,218,0.75); }
+    .gauge-leg-dot  { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+
+    /* Reset btn */
+    .reset-btn {
+      height: 30px;
+      padding: 0 14px;
+      border-radius: 6px;
+      border: 1px solid rgba(108,143,186,0.4);
+      background: rgba(16,32,50,0.8);
+      color: rgba(180,200,220,0.8);
+      font: inherit;
+      font-size: 12px;
+      cursor: pointer;
+    }
+    .reset-btn:hover { background: rgba(40,77,124,0.4); color: #d0eaf7; }
+  </style>
+</head>
+<body>
+
+<!-- ── Topbar ──────────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:20px;margin:0;">Rehab Contracts Performance</h1>
+      <p style="margin:3px 0 0;font-size:13px;">Wastewater Collection System Rehabilitation</p>
+    </div>
+  </div>
+  <button class="reset-btn" onclick="resetAll()">Reset Filters</button>
+</div>
+
+<!-- ── Page body ───────────────────────────────────────────────────────────── -->
+<div class="page-body">
+
+  <!-- KPI row -->
+  <div class="kpi-row">
+    <div class="kpi-card">
+      <div class="kpi-title">Total Pipe Bursting LF</div>
+      <div class="kpi-value" id="kpi-pb">-</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">No. of Point Repairs</div>
+      <div class="kpi-value" id="kpi-ptr">-</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">LF Beyond PR</div>
+      <div class="kpi-value" id="kpi-bpr">-</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Total LF Cleaning</div>
+      <div class="kpi-value" id="kpi-clean">-</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-title">Total LF TV Inspection</div>
+      <div class="kpi-value" id="kpi-tv">-</div>
+    </div>
+  </div>
+
+  <!-- 3-column content grid -->
+  <div class="content-grid">
+
+    <!-- ── LEFT SIDEBAR ─────────────────────────────────────────────────── -->
+    <div class="sidebar">
+
+      <!-- Date slicer: fixed ~90px -->
+      <div class="slicer-panel" style="flex:98;flex-shrink:0;min-height:82px;">
+        <div class="slicer-title">CMS Report Date</div>
+        <div class="date-slicer-body">
+          <div class="date-row"><span>From</span><input type="date" id="date-start" class="date-input" onchange="renderAll()" /></div>
+          <div class="date-row"><span>To</span><input type="date" id="date-end" class="date-input" onchange="renderAll()" /></div>
+        </div>
+      </div>
+
+      <!-- FILE_NO slicer: takes most space, scrollable -->
+      <div class="slicer-panel" style="flex:404;min-height:0;">
+        <div class="slicer-title">File No.</div>
+        <div class="slicer-body" id="slicer-fileno-body"></div>
+      </div>
+
+      <!-- Work Type slicer -->
+      <div class="slicer-panel" style="flex:150;min-height:0;">
+        <div class="slicer-title">Work Type</div>
+        <div class="slicer-body" id="slicer-wt-body"></div>
+      </div>
+
+    </div><!-- .sidebar -->
+
+    <!-- ── MIDDLE COLUMN ─────────────────────────────────────────────────── -->
+    <div class="middle-col">
+
+      <div class="panel" style="flex:240;">
+        <div class="panel-title">Completed Pipe Bursting and LF Beyond Point Repairs</div>
+        <div class="panel-chart-area">
+          <canvas id="chart-pb"></canvas>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:172;">
+        <div class="panel-title">Completed Point Repairs</div>
+        <div class="panel-chart-area">
+          <canvas id="chart-ptr"></canvas>
+        </div>
+      </div>
+
+      <div class="panel" style="flex:240;">
+        <div class="panel-title">Completed Cleaning and TV Inspections</div>
+        <div class="panel-chart-area">
+          <canvas id="chart-clean-tv"></canvas>
+        </div>
+      </div>
+
+    </div><!-- .middle-col -->
+
+    <!-- ── RIGHT COLUMN ──────────────────────────────────────────────────── -->
+    <div class="right-col">
+
+      <!-- Quantities by Work Type (big chart) -->
+      <div class="panel" style="flex:330;">
+        <div class="panel-title">Quantities by Work Type</div>
+        <div class="panel-chart-area">
+          <canvas id="chart-by-file"></canvas>
+        </div>
+      </div>
+
+      <!-- Bottom row: gauge + table -->
+      <div class="bottom-row">
+
+        <div class="panel">
+          <div class="panel-title">Dollar Expenditure and Capacity</div>
+          <div id="gauge-wrap">
+            <canvas id="gauge-canvas"></canvas>
+            <p class="gauge-spent" id="gauge-spent-label">$0</p>
+            <p class="gauge-max"   id="gauge-max-label">of $0</p>
+            <div class="gauge-legend">
+              <div class="gauge-leg-item"><div class="gauge-leg-dot" style="background:#dc2626;"></div>0–80%</div>
+              <div class="gauge-leg-item"><div class="gauge-leg-dot" style="background:#f59e0b;"></div>80–90%</div>
+              <div class="gauge-leg-item"><div class="gauge-leg-dot" style="background:#16a34a;"></div>90–100%</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-title">CMS Payment Details</div>
+          <div class="tbl-wrap">
+            <table class="detail-tbl">
+              <thead>
+                <tr>
+                  <th>Date</th>
+                  <th>File No</th>
+                  <th>Basin</th>
+                  <th>QTY</th>
+                  <th>Item Desc</th>
+                </tr>
+              </thead>
+              <tbody id="detail-tbody"></tbody>
+            </table>
+          </div>
+        </div>
+
+      </div><!-- .bottom-row -->
+
+    </div><!-- .right-col -->
+
+  </div><!-- .content-grid -->
+
+</div><!-- .page-body -->
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+/* ══════════════════════════════════════════════════════════════════
+   STATE
+══════════════════════════════════════════════════════════════════ */
+const ALL_FILE_NOS     = window.DATA_BASINV.allFileNos;     // full contract list
+const DEFAULT_FILE_NOS = window.DATA_BASINV.defaultFileNos; // pre-checked on load
+let activeFileNos = new Set(DEFAULT_FILE_NOS);
+let activeWorkTypes = new Set(); // populated after buildSlicers()
+
+const WORK_TYPE_ORDER = [
+  'Pipe Burst (PB)',
+  'Cured-in-Place (CIPP)',
+  'Point Repairs (PTR)',
+  'Footage Beyond Point Repair',
+  'Cleaning',
+  'TV Inspection',
+];
+
+const COLORS = {
+  'Pipe Burst (PB)':            '#118DFF',
+  'Cured-in-Place (CIPP)':      '#12239E',
+  'Cleaning':                    '#33E110',
+  'TV Inspection':               '#039390',
+  'Point Repairs (PTR)':         '#E66C37',
+  'Footage Beyond Point Repair': '#6B007B',
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   DATE HELPERS
+══════════════════════════════════════════════════════════════════ */
+function parseDate(s) { return s ? new Date(s + 'T00:00:00') : null; }
+
+function getDateRange() {
+  const s = document.getElementById('date-start').value;
+  const e = document.getElementById('date-end').value;
+  return {
+    start: s ? parseDate(s) : null,
+    end:   e ? parseDate(e) : null,
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   FILTER
+══════════════════════════════════════════════════════════════════ */
+function filteredRows(ignoreWt = false) {
+  const { start, end } = getDateRange();
+  return window.DATA_BASINV.rows.filter(r => {
+    const d = parseDate(r.RPT_DATE);
+    if (start && d < start) return false;
+    if (end   && d > end)   return false;
+    if (activeFileNos.size > 0 && !activeFileNos.has(r.FILE_NO)) return false;
+    if (!ignoreWt && activeWorkTypes.size > 0 && r['Work Type'] != null && !activeWorkTypes.has(r['Work Type'])) return false;
+    return true;
+  });
+}
+
+function kpiRows(workType) {
+  // KPIs ignore Work Type slicer (locked filter) but respect date + FILE_NO
+  const { start, end } = getDateRange();
+  return window.DATA_BASINV.rows.filter(r => {
+    const d = parseDate(r.RPT_DATE);
+    if (start && d < start) return false;
+    if (end   && d > end)   return false;
+    if (activeFileNos.size > 0 && !activeFileNos.has(r.FILE_NO)) return false;
+    return r['Work Type'] === workType;
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   CHART STORE
+══════════════════════════════════════════════════════════════════ */
+const CHARTS = {};
+function upsertChart(id, config) {
+  if (CHARTS[id]) CHARTS[id].destroy();
+  const ctx = document.getElementById(id);
+  if (!ctx) return;
+  CHARTS[id] = new Chart(ctx.getContext('2d'), config);
+}
+
+function roundedRect(ctx, x, y, w, h, r) {
+  const rr = Math.min(r, w / 2, h / 2);
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rr);
+  ctx.arcTo(x + w, y + h, x, y + h, rr);
+  ctx.arcTo(x, y + h, x, y, rr);
+  ctx.arcTo(x, y, x + w, y, rr);
+  ctx.closePath();
+}
+
+function drawBarValue(ctx, text, x, y, placeInside) {
+  ctx.save();
+  ctx.font = '700 9px "Segoe UI", Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+
+  if (placeInside) {
+    ctx.fillStyle = '#ffffff';
+    ctx.shadowColor = 'rgba(0,0,0,0.7)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetY = 1;
+    ctx.fillText(text, x, y);
+  } else {
+    ctx.fillStyle = '#f4f8ff';
+    ctx.shadowColor = 'rgba(0,0,0,0.72)';
+    ctx.shadowBlur = 3;
+    ctx.shadowOffsetY = 1;
+    ctx.fillText(text, x, y);
+  }
+
+  ctx.restore();
+}
+
+function formatBarLabel(value, compact = false) {
+  const n = Number(value) || 0;
+  const abs = Math.abs(n);
+  if (!compact || abs < 10000) return n.toLocaleString();
+  const suffix = abs >= 100000 ? 'K' : 'K';
+  const scaled = n / 1000;
+  const digits = abs >= 100000 ? 0 : 1;
+  return scaled.toFixed(digits).replace(/\.0$/, '') + suffix;
+}
+
+/* ── top-label plugin (labels above each bar in clustered chart) */
+const topLabelPlugin = {
+  id: 'topLabel',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    const zeroY = chart.scales.y.getPixelForValue(0);
+    chart.data.datasets.forEach((ds, di) => {
+      const meta = chart.getDatasetMeta(di);
+      if (meta.hidden) return;
+      meta.data.forEach((bar, i) => {
+        const v = ds.data[i];
+        if (v == null || v === 0) return;
+        const barTop = Math.min(bar.y, zeroY);
+        const barBottom = Math.max(bar.y, zeroY);
+        const barHeight = barBottom - barTop;
+        const insideOffset = 10 + (di % 3) * 13;
+        const placeInside = barHeight >= insideOffset + 18;
+        const label = formatBarLabel(v, true);
+        const outsideOffset = 5 + (di % 3) * 4;
+        drawBarValue(ctx, label, bar.x, placeInside ? barTop + insideOffset : barTop - outsideOffset, placeInside);
+      });
+    });
+  }
+};
+
+/* ── stack total plugin (total above stacked bars) */
+const stackTotalPlugin = {
+  id: 'stackTotal',
+  afterDatasetsDraw(chart) {
+    const n = chart.data.datasets.length;
+    if (n === 0) return;
+    const ctx = chart.ctx;
+    const zeroY = chart.scales.y.getPixelForValue(0);
+    chart.data.labels.forEach((_, i) => {
+      const total = chart.data.datasets.reduce((s, ds) => s + (ds.data[i] || 0), 0);
+      if (total === 0) return;
+      const lastVisible = chart.data.datasets.map((_, di) => chart.getDatasetMeta(di)).filter(m => !m.hidden).pop();
+      if (!lastVisible) return;
+      const bar = lastVisible.data[i];
+      if (!bar) return;
+      const barTop = Math.min(bar.y, zeroY);
+      const barBottom = Math.max(bar.y, zeroY);
+      const barHeight = barBottom - barTop;
+      const placeInside = barHeight >= 38;
+      drawBarValue(ctx, formatBarLabel(total, true), bar.x, placeInside ? barTop + 10 : barTop - 10, placeInside);
+    });
+  }
+};
+
+/* ══════════════════════════════════════════════════════════════════
+   YEAR CHART BUILDER
+══════════════════════════════════════════════════════════════════ */
+function buildYearChart(canvasId, rows, workTypes, yTitle) {
+  const filtered = rows.filter(r => r['Work Type'] && workTypes.includes(r['Work Type']));
+  const byYW = {};
+  filtered.forEach(r => {
+    const y = r.RPT_DATE.substring(0, 4);
+    const wt = r['Work Type'];
+    if (!byYW[y]) byYW[y] = {};
+    byYW[y][wt] = (byYW[y][wt] || 0) + (r.QTY || 0);
+  });
+
+  const years = Object.keys(byYW).sort();
+  const wtPresent = WORK_TYPE_ORDER.filter(w => workTypes.includes(w) && filtered.some(r => r['Work Type'] === w));
+
+  const datasets = wtPresent.map(wt => ({
+    label: wt,
+    data: years.map(y => Math.round(byYW[y]?.[wt] || 0)),
+    backgroundColor: COLORS[wt] || '#888',
+    borderWidth: 0,
+    borderRadius: 2,
+  }));
+
+  upsertChart(canvasId, {
+    type: 'bar',
+    plugins: [topLabelPlugin],
+    data: { labels: years, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: { padding: { top: 22 } },
+      plugins: {
+        legend: { labels: { color: '#b4c0d0', font: { size: 10 }, boxWidth: 10, padding: 6 } },
+        tooltip: { bodyFont: { size: 10 } },
+      },
+      scales: {
+        x: { ticks: { color: '#8ba0b6', font: { size: 10 } }, grid: { color: 'rgba(113,144,186,0.08)' } },
+        y: {
+          min: 0,
+          title: { display: true, text: yTitle, color: '#8ba0b6', font: { size: 10 } },
+          ticks: {
+            color: '#8ba0b6', font: { size: 9 },
+            callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
+          },
+          grid: { color: 'rgba(113,144,186,0.08)' },
+        },
+      },
+    },
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   QUANTITIES BY WORK TYPE (stacked by FILE_NO)
+══════════════════════════════════════════════════════════════════ */
+function buildFileChart(rows) {
+  const filtered = rows.filter(r => r['Work Type'] != null);
+  const byFW = {};
+  filtered.forEach(r => {
+    const fn = r.FILE_NO, wt = r['Work Type'];
+    if (!byFW[fn]) byFW[fn] = {};
+    byFW[fn][wt] = (byFW[fn][wt] || 0) + (r.QTY || 0);
+  });
+
+  const fileNos = Object.keys(byFW).sort((a, b) => {
+    const ta = Object.values(byFW[a]).reduce((s, v) => s + v, 0);
+    const tb = Object.values(byFW[b]).reduce((s, v) => s + v, 0);
+    return tb - ta;
+  });
+
+  const wtPresent = WORK_TYPE_ORDER.filter(w => filtered.some(r => r['Work Type'] === w));
+
+  const datasets = wtPresent.map(wt => ({
+    label: wt,
+    data: fileNos.map(fn => Math.round(byFW[fn]?.[wt] || 0)),
+    backgroundColor: COLORS[wt] || '#888',
+    borderWidth: 0,
+  }));
+
+  upsertChart('chart-by-file', {
+    type: 'bar',
+    plugins: [stackTotalPlugin],
+    data: { labels: fileNos, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      layout: { padding: { top: 16 } },
+      plugins: {
+        legend: { position: 'top', labels: { color: '#b4c0d0', font: { size: 10 }, boxWidth: 10, padding: 6 } },
+        tooltip: { bodyFont: { size: 10 } },
+      },
+      scales: {
+        x: {
+          stacked: true,
+          ticks: { color: '#8ba0b6', font: { size: 9 } },
+          grid: { color: 'rgba(113,144,186,0.08)' },
+        },
+        y: {
+          stacked: true,
+          title: { display: true, text: 'Quantities', color: '#8ba0b6', font: { size: 10 } },
+          ticks: {
+            color: '#8ba0b6', font: { size: 9 },
+            callback: v => v >= 1000 ? (v/1000).toFixed(0)+'K' : v,
+          },
+          grid: { color: 'rgba(113,144,186,0.08)' },
+        },
+      },
+    },
+  });
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   TACHOMETER GAUGE
+══════════════════════════════════════════════════════════════════ */
+function drawGauge(spent, totalAmt, range80, range90) {
+  const canvas = document.getElementById('gauge-canvas');
+  const wrap   = document.getElementById('gauge-wrap');
+
+  // Size canvas to fit the panel in both directions; wide screens used to
+  // make the gauge too tall because it only keyed off width.
+  const availW = Math.max((wrap.clientWidth || 200) - 16, 80);
+  const availH = Math.max((wrap.clientHeight || 160) - 50, 80);
+  const W = Math.min(availW, Math.round(availH / 0.55));
+  const H = Math.round(W * 0.55);
+  canvas.width  = W;
+  canvas.height = H;
+
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  const cx = W / 2, cy = H * 0.85;
+  const topPad = 14;
+  const roughR = Math.min(cx - 10, cy - topPad);
+  const lineW = Math.max(10, Math.round(roughR * 0.18));
+  const r = Math.min(cx - 10, cy - topPad - lineW / 2);
+
+  function arc(startPct, endPct, color) {
+    const a0 = Math.PI + startPct * Math.PI;
+    const a1 = Math.PI + endPct   * Math.PI;
+    ctx.beginPath();
+    ctx.arc(cx, cy, r, a0, a1);
+    ctx.lineWidth = lineW;
+    ctx.strokeStyle = color;
+    ctx.lineCap = 'butt';
+    ctx.stroke();
+  }
+
+  const safe80 = totalAmt > 0 ? Math.min(range80 / totalAmt, 1) : 0;
+  const safe90 = totalAmt > 0 ? Math.min(range90 / totalAmt, 1) : 0;
+
+  arc(0, 1,       'rgba(100,120,150,0.25)');
+  arc(0, safe80,  '#dc2626');
+  arc(safe80, safe90, '#f59e0b');
+  arc(safe90, 1,  '#16a34a');
+
+  // Needle
+  const spentPct = totalAmt > 0 ? Math.min(spent / totalAmt, 1.05) : 0;
+  const needleAngle = Math.PI + spentPct * Math.PI;
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(cx, cy);
+  ctx.lineTo(
+    cx + (r - lineW / 2 - 4) * Math.cos(needleAngle),
+    cy + (r - lineW / 2 - 4) * Math.sin(needleAngle)
+  );
+  ctx.lineWidth = 2.5;
+  ctx.strokeStyle = '#fff';
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 5, 0, 2 * Math.PI);
+  ctx.fillStyle = '#cde';
+  ctx.fill();
+
+  // Zone labels
+  ctx.font = Math.max(7, Math.round(W * 0.035)) + 'px sans-serif';
+  ctx.fillStyle = 'rgba(170,195,218,0.6)';
+  ctx.textAlign = 'center';
+  ctx.fillText('$0', cx - r - 4, cy + 12);
+  ctx.fillText('100%', cx + r + 4, cy + 12);
+}
+
+function updateGauge(rows) {
+  const spent = rows.reduce((s, r) => s + (r['Cost per Item'] || 0), 0);
+
+  const selectedFNs = [...activeFileNos];
+  const contractRows = window.DATA_CONTRACTS.rows.filter(r => selectedFNs.includes(r.FILE_NO));
+  const totalAmt = contractRows.reduce((s, r) => s + (r.TOTAL_AMT || 0), 0);
+  const range80  = contractRows.reduce((s, r) => s + (r.amt80 || 0), 0);
+  const range90  = contractRows.reduce((s, r) => s + (r.amt90 || 0), 0);
+
+  drawGauge(spent, totalAmt, range80, range90);
+
+  const fmt = n => '$' + Math.round(n).toLocaleString();
+  document.getElementById('gauge-spent-label').textContent = fmt(spent);
+  document.getElementById('gauge-max-label').textContent   = 'of ' + fmt(totalAmt);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   KPI CARDS
+══════════════════════════════════════════════════════════════════ */
+function updateKpis() {
+  const KPI_TYPES = {
+    'kpi-pb':    'Pipe Burst (PB)',
+    'kpi-ptr':   'Point Repairs (PTR)',
+    'kpi-bpr':   'Footage Beyond Point Repair',
+    'kpi-clean': 'Cleaning',
+    'kpi-tv':    'TV Inspection',
+  };
+  for (const [id, wt] of Object.entries(KPI_TYPES)) {
+    const total = kpiRows(wt).reduce((s, r) => s + (r.QTY || 0), 0);
+    document.getElementById(id).textContent = Math.round(total).toLocaleString();
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   DETAIL TABLE
+══════════════════════════════════════════════════════════════════ */
+function updateTable(rows) {
+  const tbody = document.getElementById('detail-tbody');
+  const MAX_ROWS = 500;
+  const slice = rows.slice(0, MAX_ROWS);
+  tbody.innerHTML = slice.map(r => `<tr>
+    <td>${r.RPT_DATE || ''}</td>
+    <td>${r.FILE_NO || ''}</td>
+    <td>${r.BASIN || ''}</td>
+    <td>${(r.QTY || 0).toLocaleString()}</td>
+    <td title="${r.ITEM_DESC || ''}">${r.ITEM_DESC || ''}</td>
+  </tr>`).join('');
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RENDER ALL
+══════════════════════════════════════════════════════════════════ */
+function renderAll() {
+  const rows = filteredRows();
+
+  updateKpis();
+
+  buildYearChart('chart-pb', rows,
+    ['Pipe Burst (PB)', 'Cured-in-Place (CIPP)', 'Footage Beyond Point Repair'],
+    'Linear Feet');
+  buildYearChart('chart-ptr', rows,
+    ['Point Repairs (PTR)'],
+    'Number of PR');
+  buildYearChart('chart-clean-tv', rows,
+    ['Cleaning', 'TV Inspection'],
+    'Linear Feet');
+
+  buildFileChart(rows);
+
+  const rowsForGauge = filteredRows(true);
+  updateGauge(rowsForGauge);
+
+  updateTable(rows);
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   SLICER BUILDERS
+══════════════════════════════════════════════════════════════════ */
+function buildFileNoSlicer() {
+  const container = document.getElementById('slicer-fileno-body');
+  container.innerHTML = '';
+  ALL_FILE_NOS.forEach(fn => {
+    const isDefault = DEFAULT_FILE_NOS.includes(fn);
+    const li = document.createElement('div');
+    li.className = isDefault ? 'sl-item active' : 'sl-item';
+    li.dataset.val = fn;
+    li.innerHTML = `<input type="checkbox" ${isDefault ? 'checked' : ''} /><span>${fn}</span>`;
+    li.addEventListener('click', e => {
+      e.preventDefault();
+      if (activeFileNos.has(fn)) {
+        activeFileNos.delete(fn);
+        li.classList.remove('active');
+        li.querySelector('input').checked = false;
+      } else {
+        activeFileNos.add(fn);
+        li.classList.add('active');
+        li.querySelector('input').checked = true;
+      }
+      renderAll();
+    });
+    container.appendChild(li);
+  });
+}
+
+function buildWorkTypeSlicer() {
+  const wts = WORK_TYPE_ORDER.filter(w =>
+    window.DATA_BASINV.rows.some(r => r['Work Type'] === w)
+  );
+  activeWorkTypes = new Set(wts);
+
+  const container = document.getElementById('slicer-wt-body');
+  container.innerHTML = '';
+  wts.forEach(wt => {
+    const li = document.createElement('div');
+    li.className = 'sl-item active';
+    li.dataset.val = wt;
+    li.innerHTML = `<input type="checkbox" checked /><span style="border-left:3px solid ${COLORS[wt]||'#888'};padding-left:5px">${wt}</span>`;
+    li.addEventListener('click', e => {
+      e.preventDefault();
+      if (activeWorkTypes.has(wt)) {
+        activeWorkTypes.delete(wt);
+        li.classList.remove('active');
+        li.querySelector('input').checked = false;
+      } else {
+        activeWorkTypes.add(wt);
+        li.classList.add('active');
+        li.querySelector('input').checked = true;
+      }
+      renderAll();
+    });
+    container.appendChild(li);
+  });
+}
+
+function initDateSlicer() {
+  document.getElementById('date-start').value = window.DATA_BASINV.dateMin;
+  document.getElementById('date-end').value   = window.DATA_BASINV.dateMax;
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RESET
+══════════════════════════════════════════════════════════════════ */
+function resetAll() {
+  activeFileNos = new Set(DEFAULT_FILE_NOS);
+  document.querySelectorAll('#slicer-fileno-body .sl-item').forEach(li => {
+    const fn = li.dataset.val;
+    const on = DEFAULT_FILE_NOS.includes(fn);
+    li.classList.toggle('active', on);
+    li.querySelector('input').checked = on;
+  });
+
+  const wts = WORK_TYPE_ORDER.filter(w =>
+    window.DATA_BASINV.rows.some(r => r['Work Type'] === w)
+  );
+  activeWorkTypes = new Set(wts);
+  document.querySelectorAll('#slicer-wt-body .sl-item').forEach(li => {
+    li.classList.add('active');
+    li.querySelector('input').checked = true;
+  });
+
+  initDateSlicer();
+  renderAll();
+}
+
+/* ══════════════════════════════════════════════════════════════════
+   RESIZE - redraw gauge (Chart.js handles itself via responsive:true)
+══════════════════════════════════════════════════════════════════ */
+window.addEventListener('resize', () => {
+  const rowsForGauge = filteredRows(true);
+  updateGauge(rowsForGauge);
+});
+
+/* ══════════════════════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════════════════════ */
+buildFileNoSlicer();
+buildWorkTypeSlicer();
+initDateSlicer();
+renderAll();
+</script>
+</body>
+</html>

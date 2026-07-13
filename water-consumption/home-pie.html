@@ -1,0 +1,774 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Historical Water Consumption Trends</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+    body { display: flex; flex-direction: column; background-attachment: fixed; }
+
+    .topbar { gap: 16px; flex-shrink: 0; padding: 14px 22px; position: relative; z-index: 60; overflow: visible; }
+    .topbar-logo { height: 44px; flex-shrink: 0; }
+    .topbar-title-block h1 { margin: 0; font-size: 20px; line-height: 1.15; }
+    .topbar-title-block p  { margin: 2px 0 0; font-size: 12px; color: var(--muted); }
+
+    /* ── Slicer strip ─── */
+    .slicer-strip { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .slicer-strip label {
+      font-size: 10px; color: var(--muted); font-weight: 700;
+      text-transform: uppercase; letter-spacing: .05em; white-space: nowrap;
+    }
+    .btn-reset {
+      background: rgba(93,168,255,.13); border: 1px solid rgba(93,168,255,.3);
+      color: #7dc0ff; border-radius: 8px; padding: 0 12px; height: 30px;
+      font-size: 12px; cursor: pointer; white-space: nowrap; font-family: inherit;
+    }
+    .btn-reset:hover { background: rgba(93,168,255,.22); }
+
+    /* ── Multi-select widget ─── */
+    .multi-filter { position: relative; flex: 0 0 auto; }
+    .multi-filter.open { z-index: 1000; }
+    .multi-trigger {
+      height: 30px; border-radius: 8px;
+      border: 1px solid rgba(108,143,186,.36);
+      background: #102032; color: var(--text);
+      padding: 0 10px; font: inherit; font-size: 12px; cursor: pointer;
+      display: flex; align-items: center; justify-content: space-between; gap: 8px;
+      min-width: 140px;
+    }
+    .multi-trigger::after { content: "▾"; color: rgba(180,192,208,.7); font-size: 10px; flex-shrink: 0; }
+    .multi-panel {
+      display: none; position: absolute; right: 0; left: auto; top: calc(100% + 5px); z-index: 1001;
+      width: min(260px, 80vw); padding: 8px; border-radius: 10px;
+      border: 1px solid rgba(108,143,186,.36); background: #102032;
+      box-shadow: 0 12px 28px rgba(0,0,0,.38);
+    }
+    .multi-filter.open .multi-panel { display: block; }
+    .multi-search {
+      width: 100%; height: 28px; border-radius: 8px; border: 1px solid rgba(108,143,186,.32);
+      background: rgba(10,18,30,.75); color: var(--text); padding: 0 9px;
+      font: inherit; font-size: 12px; margin-bottom: 6px; box-sizing: border-box;
+    }
+    .multi-actions { display: flex; justify-content: space-between; gap: 8px; margin-bottom: 5px; }
+    .multi-actions button {
+      border: 0; background: transparent; color: #7db7ff;
+      font: inherit; font-size: 11px; cursor: pointer; padding: 2px;
+    }
+    .multi-options { max-height: 200px; overflow-y: auto; display: grid; gap: 1px; }
+    .multi-option {
+      display: flex; align-items: center; gap: 7px;
+      font-size: 12px; padding: 4px 3px; border-radius: 6px; cursor: pointer;
+    }
+    .multi-option:hover { background: rgba(93,168,255,.12); }
+    .multi-option input { accent-color: #5da8ff; cursor: pointer; }
+
+    /* ── Subtabs ─── */
+    .subtabs { flex-shrink: 0; }
+    .page-body { flex: 1; min-height: 0; display: flex; overflow: hidden; }
+
+    /* ── Left panel ─── */
+    .left-panel {
+      width: 42.5%; flex-shrink: 0;
+      display: flex; flex-direction: column; min-height: 0;
+      border-right: 1px solid var(--border);
+      background: rgba(12,18,28,.65);
+    }
+    .pivot-scroll { flex: 1; min-height: 0; overflow-y: auto; overflow-x: auto; }
+    .pivot-scroll::-webkit-scrollbar { width: 5px; height: 5px; }
+    .pivot-scroll::-webkit-scrollbar-track { background: transparent; }
+    .pivot-scroll::-webkit-scrollbar-thumb { background: rgba(100,130,168,.4); border-radius: 3px; }
+
+    /* ── Pivot table ─── */
+    .pivot-tbl { width: 100%; border-collapse: collapse; font-size: 11px; min-width: 380px; }
+    .pivot-tbl thead th {
+      position: sticky; top: 0; z-index: 2;
+      background: #162230; padding: 6px 8px;
+      border-bottom: 2px solid var(--border);
+      font-size: 10px; font-weight: 700; color: var(--muted);
+      white-space: nowrap; user-select: none;
+    }
+    .pivot-tbl thead th:first-child { text-align: left; }
+    .pivot-tbl thead th:not(:first-child) { text-align: right; }
+    .pivot-tbl td {
+      padding: 3px 8px;
+      border-bottom: 1px solid rgba(113,144,186,.07);
+      white-space: nowrap; text-align: right;
+    }
+    .pivot-tbl td:first-child { text-align: left; }
+    .pivot-tbl td[data-year] { cursor: pointer; }
+    .pivot-tbl td[data-year]:hover { color: #5da8ff; background: rgba(40,77,128,.3) !important; }
+    .pivot-row-l1 td { font-weight: 700; background: rgba(27,42,61,.92); }
+    .pivot-row-l1:hover td { background: rgba(40,65,100,.92); cursor: pointer; }
+    .pivot-row-l2 td { background: rgba(19,32,49,.82); }
+    .pivot-row-l2:hover td { background: rgba(32,54,84,.82); cursor: pointer; }
+    .pivot-row-l3 td { background: rgba(14,23,37,.72); font-size: 10.5px; }
+    .pivot-row-l3:hover td { background: rgba(28,48,74,.72); cursor: pointer; }
+    .pivot-row-selected td { background: rgba(40,77,128,.65) !important; }
+    .pivot-year-selected { outline: 2px solid rgba(93,168,255,.6); outline-offset: -2px; }
+    .indent-1 { padding-left: 6px !important; }
+    .indent-2 { padding-left: 22px !important; }
+    .indent-3 { padding-left: 38px !important; }
+    .expand-btn {
+      background: none; border: none; color: rgba(93,168,255,.75);
+      cursor: pointer; padding: 0 3px; font-size: 9px; vertical-align: middle; line-height: 1;
+    }
+    .expand-btn:hover { color: #5da8ff; }
+
+    /* ── Right panel ─── */
+    .right-panel {
+      flex: 1; min-width: 0;
+      display: flex; flex-direction: column;
+      gap: 1px;
+      background: var(--border);
+    }
+    .donut-legend {
+      flex-shrink: 0; height: 30px;
+      display: flex; align-items: center; justify-content: flex-end;
+      gap: 10px; min-width: 0; overflow: hidden;
+      padding: 0 14px;
+      background: rgba(13,22,35,.92);
+      border-bottom: 1px solid rgba(94,126,166,.18);
+      color: rgba(196,210,229,.82);
+      font-size: 10px; font-weight: 650; letter-spacing: .02em;
+    }
+    .donut-grid {
+      flex: 1; min-height: 0;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: 1fr 1fr;
+      gap: 1px;
+    }
+    .legend-item { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+    .legend-swatch { width: 9px; height: 9px; border-radius: 2px; box-shadow: inset 0 0 0 1px rgba(255,255,255,.16); }
+    .legend-more { color: rgba(155,173,198,.72); }
+    .donut-quad {
+      position: relative; min-height: 0;
+      background: linear-gradient(180deg, rgba(21,34,51,.96), rgba(15,25,39,.98));
+      display: flex; flex-direction: column;
+      padding: 12px 18px 12px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.035);
+    }
+    .quad-year {
+      font-size: 13px; font-weight: 700; color: rgba(214,224,238,.82);
+      margin-bottom: 0; flex-shrink: 0; letter-spacing: .04em;
+    }
+    .quad-chart-wrap { flex: 1; min-height: 0; position: relative; }
+    .quad-chart-wrap canvas {
+      position: absolute; left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    .kpi-overlay {
+      position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -52%);
+      text-align: center; pointer-events: none; z-index: 1;
+    }
+    .kpi-big { font-size: 15px; font-weight: 650; color: rgba(239,246,255,.92); line-height: 1; }
+    .kpi-unit {
+      position: absolute; left: 50%; top: calc(100% + 5px);
+      transform: translateX(-50%);
+      font-size: 9px; color: rgba(172,187,207,.74);
+      text-transform: uppercase; letter-spacing: .08em; white-space: nowrap;
+    }
+    .partial-badge {
+      position: absolute; top: 10px; right: 12px; z-index: 2;
+      background: rgba(255,176,32,.16); border: 1px solid rgba(255,176,32,.42);
+      color: #ffb020; font-size: 9px; font-weight: 700;
+      letter-spacing: .03em; padding: 2px 8px; border-radius: 20px;
+      white-space: nowrap; pointer-events: none;
+    }
+  </style>
+</head>
+
+<body>
+<header class="topbar">
+  <div style="display:flex;align-items:center;gap:14px;flex-shrink:0">
+    <div class="topbar-title-block">
+      <h1>Historical Water Consumption Trends</h1>
+      <p id="subtitle-years">2019 through 2026 &nbsp;·&nbsp; Annual Average Gallons Per Day</p>
+    </div>
+  </div>
+  <div class="slicer-strip">
+    <label>ACCT CLASS</label>
+    <div class="multi-filter" id="mf-acctclass"></div>
+    <label>WW METER BASIN</label>
+    <div class="multi-filter" id="mf-meterbasin"></div>
+    <label>WWTP SERVICE AREA</label>
+    <div class="multi-filter" id="mf-servicearea"></div>
+    <button class="btn-reset" onclick="resetSlicers()">&#8635; Reset</button>
+  </div>
+</header>
+
+<nav class="subtabs">
+  <button class="subtab" onclick="location.href='account-count.html'">Account Count</button>
+  <button class="subtab active">Consumption Mix</button>
+  <button class="subtab" onclick="location.href='map.html'">Map</button>
+</nav>
+
+<div class="page-body">
+  <div class="left-panel">
+    <div class="pivot-scroll">
+      <table class="pivot-tbl">
+        <thead>
+          <tr id="pivot-header">
+            <th style="min-width:160px;text-align:left">SERVICE AREA / METER BASIN / ACCT CLASS</th>
+          </tr>
+        </thead>
+        <tbody id="pivot-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="right-panel">
+    <div class="donut-legend" id="donut-legend"></div>
+    <div class="donut-grid" id="donut-grid"></div>
+  </div>
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data/data.js"></script>
+<script>
+// ─── ACCTCLASS colors ─────────────────────────────────────────────────────────
+const CLASS_COLORS = {
+  'COMM':       '#D9B300',
+  'CW-INDIR':   '#12239E',
+  'CW-MUD':     '#A66999',
+  'CW-RECLAIM': '#6B007B',
+  'CW-WAU':     '#E044A7',
+  'CW-WELL':    '#744EC2',
+  'DRNONLY':    '#7A6B2A',
+  'EBS':        '#D64550',
+  'ECC':        '#197278',
+  'FIRE':       '#1AAB40',
+  'GOV':        '#15C6F4',
+  'INDSWRSUR':  '#4092FF',
+  'IRRIG':      '#E66C37',
+  'MULTIF':     '#BE5DC9',
+  'RES':        '#118DFF',
+  'RESALE':     '#B5A1FF',
+  'SEWER':      '#C4A200',
+  'TRANSIENT':  '#FF8080',
+  'XX':         '#00DBBC',
+};
+const FALLBACK_COLORS = [
+  '#118DFF','#12239E','#E66C37','#6B007B','#E044A7','#744EC2','#D9B300',
+  '#D64550','#197278','#1AAB40','#15C6F4','#4092FF','#FFA058','#BE5DC9',
+  '#F472D0','#B5A1FF','#C4A200','#FF8080','#00DBBC','#5BD667',
+];
+function classColor(cls, idx) {
+  return CLASS_COLORS[cls] || FALLBACK_COLORS[idx % FALLBACK_COLORS.length];
+}
+function colorWithAlpha(hex, alpha) {
+  const clean = hex.replace('#', '');
+  const r = parseInt(clean.slice(0, 2), 16);
+  const g = parseInt(clean.slice(2, 4), 16);
+  const b = parseInt(clean.slice(4, 6), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+// ─── Filter state ─────────────────────────────────────────────────────────────
+const S = {
+  filterSA: new Set(),  // selected service areas  (empty = All)
+  filterMB: new Set(),  // selected meter basins   (empty = All)
+  filterAC: new Set(),  // selected account classes (empty = All)
+};
+
+const YEARS = window.DATA_META.years;
+const donutCharts = {};
+const expandedL1 = new Set();
+const expandedL2 = new Set();
+let pivotFilter = null;  // {sa, mb, ac, year?} - pivot row/cell click
+let donutFilter = null;  // {ac}               - donut slice click
+
+// ─── Multi-select widget ──────────────────────────────────────────────────────
+const FILTERS = {};
+
+function createMultiSelect(id, label, selectedSet, onChange) {
+  const root = document.getElementById(id);
+  root.innerHTML = `
+    <button type="button" class="multi-trigger"></button>
+    <div class="multi-panel">
+      <input class="multi-search" type="search" placeholder="Search ${label}">
+      <div class="multi-actions">
+        <button type="button" data-act="all">Select all</button>
+        <button type="button" data-act="clear">Clear</button>
+      </div>
+      <div class="multi-options"></div>
+    </div>`;
+
+  const trigger   = root.querySelector('.multi-trigger');
+  const search    = root.querySelector('.multi-search');
+  const optionsEl = root.querySelector('.multi-options');
+  let options = [];
+
+  function updateLabel() {
+    if (!selectedSet.size)         trigger.textContent = `All ${label}`;
+    else if (selectedSet.size===1) trigger.textContent = [...selectedSet][0];
+    else                           trigger.textContent = `${selectedSet.size} ${label}`;
+  }
+
+  function renderOptions() {
+    const q = search.value.trim().toLowerCase();
+    const visible = options.filter(v => !q || v.toLowerCase().includes(q));
+    optionsEl.innerHTML = '';
+    if (!visible.length) {
+      const msg = document.createElement('div');
+      msg.className = 'multi-option'; msg.style.color = 'var(--muted)';
+      msg.textContent = 'No matches';
+      optionsEl.appendChild(msg);
+      return;
+    }
+    visible.forEach(v => {
+      const row   = document.createElement('label');
+      row.className = 'multi-option';
+      const input = document.createElement('input');
+      input.type    = 'checkbox';
+      input.value   = v;
+      input.checked = selectedSet.has(v);
+      const text  = document.createElement('span');
+      text.textContent = v;
+      input.addEventListener('change', () => {
+        input.checked ? selectedSet.add(v) : selectedSet.delete(v);
+        updateLabel();
+        onChange();
+      });
+      row.append(input, text);
+      optionsEl.appendChild(row);
+    });
+  }
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    document.querySelectorAll('.multi-filter.open').forEach(el => {
+      if (el !== root) el.classList.remove('open');
+    });
+    root.classList.toggle('open');
+    if (root.classList.contains('open')) { search.focus({ preventScroll: true }); renderOptions(); }
+  });
+
+  search.addEventListener('input', renderOptions);
+
+  root.querySelector('[data-act="all"]').addEventListener('click', () => {
+    options.forEach(v => selectedSet.add(v));
+    updateLabel(); renderOptions(); onChange();
+  });
+  root.querySelector('[data-act="clear"]').addEventListener('click', () => {
+    selectedSet.clear();
+    updateLabel(); renderOptions(); onChange();
+  });
+
+  FILTERS[id] = {
+    setOptions(values) {
+      options = [...values].filter(Boolean);
+      // drop any selected values no longer in available list
+      for (const v of [...selectedSet]) if (!options.includes(v)) selectedSet.delete(v);
+      updateLabel();
+      if (root.classList.contains('open')) renderOptions();
+    },
+  };
+  updateLabel();
+}
+
+// ─── Format helpers ───────────────────────────────────────────────────────────
+// KPI center: always shown in thousands, e.g. "1,844K"
+function fmtKpi(v) {
+  if (!v) return '-';
+  return Math.round(v / 1000).toLocaleString() + 'K';
+}
+// Pivot: auto-scaled units (2dp for M/B, whole K)
+function fmtPivot(v) {
+  if (!v) return '';
+  if (v >= 1e9) return (v / 1e9).toFixed(2) + 'B';
+  if (v >= 1e6) return (v / 1e6).toFixed(2) + 'M';
+  if (v >= 1e3) return Math.round(v / 1e3).toLocaleString() + 'K';
+  return Math.round(v).toLocaleString();
+}
+function escH(s) {
+  return String(s ?? '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ─── Filtering ────────────────────────────────────────────────────────────────
+function filterData(pf, df) {
+  return window.DATA_AGG.filter(r => {
+    if (S.filterAC.size && !S.filterAC.has(r.ACCTCLASS))  return false;
+    if (S.filterMB.size && !S.filterMB.has(r.METERBASIN)) return false;
+    if (S.filterSA.size && !S.filterSA.has(r.SERVICE_AR)) return false;
+    if (pf) {
+      if (pf.sa   && r.SERVICE_AR !== pf.sa)   return false;
+      if (pf.mb   && r.METERBASIN !== pf.mb)   return false;
+      if (pf.ac   && r.ACCTCLASS  !== pf.ac)   return false;
+      if (pf.year && r.YEAR       !== pf.year)  return false;
+    }
+    if (df) {
+      if (df.ac && r.ACCTCLASS !== df.ac) return false;
+    }
+    return true;
+  });
+}
+
+// ─── Cascading slicer options ─────────────────────────────────────────────────
+function refreshSlicerOptions() {
+  const bySA   = window.DATA_AGG.filter(r => !S.filterSA.size || S.filterSA.has(r.SERVICE_AR));
+  const bySAMB = bySA.filter(r =>             !S.filterMB.size || S.filterMB.has(r.METERBASIN));
+
+  const availMBs = new Set(bySA.map(r => r.METERBASIN));
+  const availACs = new Set(bySAMB.map(r => r.ACCTCLASS));
+
+  FILTERS['mf-meterbasin'].setOptions(window.DATA_META.meterBasins.filter(v => availMBs.has(v)));
+  FILTERS['mf-acctclass'].setOptions(window.DATA_META.acctClasses.filter(v => availACs.has(v)));
+}
+
+// ─── Slicer init ──────────────────────────────────────────────────────────────
+function initSlicers() {
+  S.filterSA.add('Chocolate Bayou');  // default pre-selection
+
+  createMultiSelect('mf-servicearea', 'Service Areas', S.filterSA, () => {
+    pivotFilter = null; donutFilter = null;
+    refreshSlicerOptions();
+    render();
+  });
+  FILTERS['mf-servicearea'].setOptions(window.DATA_META.serviceAreas);
+
+  createMultiSelect('mf-meterbasin', 'Meter Basins', S.filterMB, () => {
+    pivotFilter = null; donutFilter = null;
+    refreshSlicerOptions();
+    render();
+  });
+  createMultiSelect('mf-acctclass', 'Acct Classes', S.filterAC, () => {
+    pivotFilter = null; donutFilter = null;
+    render();
+  });
+
+  refreshSlicerOptions();
+}
+
+function resetSlicers() {
+  S.filterSA.clear(); S.filterSA.add('Chocolate Bayou');
+  S.filterMB.clear();
+  S.filterAC.clear();
+  pivotFilter = null;
+  donutFilter = null;
+  expandedL1.clear();
+  expandedL2.clear();
+  expandedL1.add('Chocolate Bayou');
+  expandedL2.add('Chocolate Bayou|CB002');
+  FILTERS['mf-servicearea'].setOptions(window.DATA_META.serviceAreas);
+  refreshSlicerOptions();
+  render();
+}
+
+// ─── Pivot ────────────────────────────────────────────────────────────────────
+function buildPivot(data) {
+  const tree = {};
+  for (const r of data) {
+    const sa = r.SERVICE_AR, mb = r.METERBASIN, ac = r.ACCTCLASS;
+    if (!tree[sa]) tree[sa] = {};
+    if (!tree[sa][mb]) tree[sa][mb] = {};
+    if (!tree[sa][mb][ac]) tree[sa][mb][ac] = {};
+    tree[sa][mb][ac][r.YEAR] = (tree[sa][mb][ac][r.YEAR] || 0) + r.gpd_sum;
+  }
+
+  const pf   = pivotFilter;
+  const html = [];
+
+  for (const sa of Object.keys(tree).sort()) {
+    const saY = {};
+    for (const mbObj of Object.values(tree[sa]))
+      for (const acObj of Object.values(mbObj))
+        for (const y of YEARS) saY[y] = (saY[y]||0) + (acObj[y]||0);
+
+    const selL1 = pf && pf.sa === sa && !pf.mb && !pf.year;
+    const expL1 = expandedL1.has(sa);
+
+    const yearCells = YEARS.map(y => {
+      const sel = pf && pf.sa === sa && !pf.mb && pf.year === y;
+      return `<td data-year="${y}" data-level="1" data-sa="${escH(sa)}" data-mb="" data-ac=""` +
+             (sel ? ' class="pivot-year-selected"' : '') +
+             `>${fmtPivot(saY[y]||0)}</td>`;
+    }).join('');
+
+    html.push(
+      `<tr class="pivot-row-l1${selL1 ? ' pivot-row-selected' : ''}" ` +
+      `data-level="1" data-sa="${escH(sa)}" data-mb="" data-ac="">` +
+      `<td class="indent-1"><button class="expand-btn" data-action="expandL1" data-sa="${escH(sa)}">${expL1 ? '▼' : '▶'}</button> ${escH(sa)}</td>` +
+      yearCells + `</tr>`
+    );
+
+    if (expL1) {
+      for (const mb of Object.keys(tree[sa]).sort()) {
+        const mbY = {};
+        for (const acObj of Object.values(tree[sa][mb]))
+          for (const y of YEARS) mbY[y] = (mbY[y]||0) + (acObj[y]||0);
+
+        const selL2 = pf && pf.sa === sa && pf.mb === mb && !pf.ac && !pf.year;
+        const key2  = sa + '|' + mb;
+        const expL2 = expandedL2.has(key2);
+
+        const mbYearCells = YEARS.map(y => {
+          const sel = pf && pf.sa === sa && pf.mb === mb && !pf.ac && pf.year === y;
+          return `<td data-year="${y}" data-level="2" data-sa="${escH(sa)}" data-mb="${escH(mb)}" data-ac=""` +
+                 (sel ? ' class="pivot-year-selected"' : '') +
+                 `>${fmtPivot(mbY[y]||0)}</td>`;
+        }).join('');
+
+        html.push(
+          `<tr class="pivot-row-l2${selL2 ? ' pivot-row-selected' : ''}" ` +
+          `data-level="2" data-sa="${escH(sa)}" data-mb="${escH(mb)}" data-ac="">` +
+          `<td class="indent-2"><button class="expand-btn" data-action="expandL2" data-sa="${escH(sa)}" data-mb="${escH(mb)}">${expL2 ? '▼' : '▶'}</button> ${escH(mb)}</td>` +
+          mbYearCells + `</tr>`
+        );
+
+        if (expL2) {
+          for (const ac of Object.keys(tree[sa][mb]).sort()) {
+            const acY   = tree[sa][mb][ac];
+            const selL3 = pf && pf.sa === sa && pf.mb === mb && pf.ac === ac && !pf.year;
+
+            const acYearCells = YEARS.map(y => {
+              const sel = pf && pf.sa === sa && pf.mb === mb && pf.ac === ac && pf.year === y;
+              return `<td data-year="${y}" data-level="3" data-sa="${escH(sa)}" data-mb="${escH(mb)}" data-ac="${escH(ac)}"` +
+                     (sel ? ' class="pivot-year-selected"' : '') +
+                     `>${fmtPivot(acY[y]||0)}</td>`;
+            }).join('');
+
+            html.push(
+              `<tr class="pivot-row-l3${selL3 ? ' pivot-row-selected' : ''}" ` +
+              `data-level="3" data-sa="${escH(sa)}" data-mb="${escH(mb)}" data-ac="${escH(ac)}">` +
+              `<td class="indent-3">${escH(ac)}</td>` +
+              acYearCells + `</tr>`
+            );
+          }
+        }
+      }
+    }
+  }
+  document.getElementById('pivot-body').innerHTML = html.join('');
+}
+
+document.getElementById('pivot-body').addEventListener('click', function(e) {
+  const btn = e.target.closest('.expand-btn');
+  if (btn) {
+    e.stopPropagation();
+    const sa = btn.dataset.sa, mb = btn.dataset.mb;
+    if (btn.dataset.action === 'expandL1') {
+      expandedL1.has(sa) ? expandedL1.delete(sa) : expandedL1.add(sa);
+    } else {
+      const k = sa + '|' + mb;
+      expandedL2.has(k) ? expandedL2.delete(k) : expandedL2.add(k);
+    }
+    buildPivot(filterData(null, donutFilter));
+    return;
+  }
+
+  const td = e.target.closest('td[data-year]');
+  if (td) {
+    const year  = parseInt(td.dataset.year);
+    const level = parseInt(td.dataset.level);
+    const sa = td.dataset.sa || null;
+    const mb = td.dataset.mb || null;
+    const ac = td.dataset.ac || null;
+    const nf = {
+      sa:   (level >= 1 && sa) ? sa : null,
+      mb:   (level >= 2 && mb) ? mb : null,
+      ac:   (level >= 3 && ac) ? ac : null,
+      year,
+    };
+    const same = pivotFilter && pivotFilter.year === nf.year &&
+      pivotFilter.sa === nf.sa && pivotFilter.mb === nf.mb && pivotFilter.ac === nf.ac;
+    pivotFilter = same ? null : nf;
+    donutFilter = null;
+    updateDonuts(filterData(pivotFilter, null));
+    buildPivot(filterData(null, donutFilter));
+    return;
+  }
+
+  const tr = e.target.closest('tr[data-level]');
+  if (!tr) return;
+  const level = parseInt(tr.dataset.level);
+  const sa = tr.dataset.sa || null;
+  const mb = tr.dataset.mb || null;
+  const ac = tr.dataset.ac || null;
+  const nf = {
+    sa:   (level >= 1 && sa) ? sa : null,
+    mb:   (level >= 2 && mb) ? mb : null,
+    ac:   (level >= 3 && ac) ? ac : null,
+    year: null,
+  };
+  const same = pivotFilter && !pivotFilter.year &&
+    pivotFilter.sa === nf.sa && pivotFilter.mb === nf.mb && pivotFilter.ac === nf.ac;
+  pivotFilter = same ? null : nf;
+  donutFilter = null;
+  updateDonuts(filterData(pivotFilter, null));
+  buildPivot(filterData(null, donutFilter));
+});
+
+// ─── Dynamic setup ────────────────────────────────────────────────────────────
+function buildPivotHeader() {
+  const tr = document.getElementById('pivot-header');
+  YEARS.forEach(y => {
+    const th = document.createElement('th');
+    th.style.width = '84px';
+    th.textContent = y;
+    tr.appendChild(th);
+  });
+}
+
+const MONTH_LABELS = {
+  JAN:'Jan', FEB:'Feb', MAR:'Mar', APR:'Apr', MAY:'May', JUN:'Jun',
+  JUL:'Jul', AUG:'Aug', SEP:'Sep', OCT:'Oct', NOV:'Nov', DEC:'Dec',
+};
+
+function initDonutGrid() {
+  const grid = document.getElementById('donut-grid');
+  const partialYears = window.DATA_META.partialYears || {};
+  YEARS.forEach(year => {
+    const quad = document.createElement('div');
+    quad.className = 'donut-quad';
+    const lastMonth = partialYears[year];
+    const badge = lastMonth
+      ? `<div class="partial-badge" title="${year} reflects billing data through ${MONTH_LABELS[lastMonth]} only - later months not yet reported">Partial &middot; Jan&ndash;${MONTH_LABELS[lastMonth]}</div>`
+      : '';
+    quad.innerHTML =
+      `<div class="quad-year">${year}</div>` +
+      badge +
+      `<div class="quad-chart-wrap">` +
+        `<canvas id="donut-${year}"></canvas>` +
+        `<div class="kpi-overlay"><div class="kpi-big" id="kpi-${year}">-</div><div class="kpi-unit">gpd</div></div>` +
+      `</div>`;
+    grid.appendChild(quad);
+  });
+}
+
+// ─── Donuts ───────────────────────────────────────────────────────────────────
+function initDonuts() {
+  for (const year of YEARS) {
+    const ctx = document.getElementById(`donut-${year}`).getContext('2d');
+    donutCharts[year] = new Chart(ctx, {
+      type: 'doughnut',
+      data: { labels: [], datasets: [{ data: [], backgroundColor: [], borderWidth: 2,
+        borderColor: 'rgba(15,25,39,.96)', hoverBorderColor: 'rgba(226,236,248,.55)',
+        hoverOffset: 3, spacing: 2, borderRadius: 2 }] },
+      options: {
+        responsive: true, maintainAspectRatio: true, aspectRatio: 1, cutout: '70%', radius: '88%',
+        layout: { padding: 6 },
+        animation: { duration: 280 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label(ctx) {
+                const total = ctx.chart.data.datasets[0].data.reduce((s, v) => s + v, 0);
+                const pct   = total > 0 ? Math.round((ctx.raw / total) * 100) : 0;
+                return ` ${ctx.label}: ${fmtKpi(ctx.raw)} (${pct}%)`;
+              }
+            }
+          }
+        },
+        onClick(event, elements) {
+          if (!elements.length) {
+            if (donutFilter) { donutFilter = null; pivotFilter = null; render(); }
+            return;
+          }
+          const cls  = this.data.labels[elements[0].index];
+          const same = donutFilter && donutFilter.ac === cls;
+          donutFilter = same ? null : { ac: cls };
+          if (donutFilter) pivotFilter = null;
+          buildPivot(filterData(null, donutFilter));
+          updateDonuts(filterData(pivotFilter, null));
+        }
+      }
+    });
+  }
+}
+
+function donutSliceData(data, year) {
+  const byClass = {};
+  for (const r of data) {
+    if (r.YEAR !== year) continue;
+    byClass[r.ACCTCLASS] = (byClass[r.ACCTCLASS] || 0) + r.gpd_sum;
+  }
+  const entries = Object.entries(byClass).sort((a, b) => b[1] - a[1]);
+  return {
+    labels: entries.map(([k]) => k),
+    values: entries.map(([, v]) => v),
+    total:  entries.reduce((s, [, v]) => s + v, 0),
+  };
+}
+
+function renderDonutLegend(data) {
+  const byClass = {};
+  for (const r of data) {
+    byClass[r.ACCTCLASS] = (byClass[r.ACCTCLASS] || 0) + r.gpd_sum;
+  }
+  const entries = Object.entries(byClass).sort((a, b) => b[1] - a[1]);
+  const shown = entries.slice(0, 7);
+  const legend = document.getElementById('donut-legend');
+  legend.innerHTML = '';
+  shown.forEach(([label], idx) => {
+    const item = document.createElement('span');
+    item.className = 'legend-item';
+    const swatch = document.createElement('span');
+    swatch.className = 'legend-swatch';
+    swatch.style.backgroundColor = colorWithAlpha(classColor(label, idx), .9);
+    const text = document.createElement('span');
+    text.textContent = label;
+    item.append(swatch, text);
+    legend.appendChild(item);
+  });
+  if (entries.length > shown.length) {
+    const more = document.createElement('span');
+    more.className = 'legend-more';
+    more.textContent = `+${entries.length - shown.length} more`;
+    legend.appendChild(more);
+  }
+}
+
+function updateDonuts(data) {
+  const df = donutFilter;
+  renderDonutLegend(data);
+  for (const year of YEARS) {
+    const { labels, values, total } = donutSliceData(data, year);
+    const colors = labels.map((l, i) => {
+      const base = classColor(l, i);
+      if (!df || l === df.ac) return colorWithAlpha(base, .86);
+      return colorWithAlpha(base, .18);
+    });
+    const ch = donutCharts[year];
+    ch.data.labels = labels;
+    ch.data.datasets[0].data  = values;
+    ch.data.datasets[0].backgroundColor = colors;
+    ch.update();
+    let kpiVal = total;
+    if (df) {
+      kpiVal = data.filter(r => r.YEAR === year && r.ACCTCLASS === df.ac)
+                   .reduce((s, r) => s + r.gpd_sum, 0);
+    }
+    document.getElementById(`kpi-${year}`).textContent = fmtKpi(kpiVal);
+  }
+}
+
+// ─── Render ───────────────────────────────────────────────────────────────────
+function render() {
+  buildPivot(filterData(null, donutFilter));
+  updateDonuts(filterData(pivotFilter, null));
+}
+
+// ─── Close multi-select panels on outside click ───────────────────────────────
+document.addEventListener('click', e => {
+  if (!e.target.closest('.multi-filter')) {
+    document.querySelectorAll('.multi-filter.open').forEach(el => el.classList.remove('open'));
+  }
+});
+
+// ─── Init ─────────────────────────────────────────────────────────────────────
+initSlicers();
+buildPivotHeader();
+initDonutGrid();
+initDonuts();
+expandedL1.add('Chocolate Bayou');
+expandedL2.add('Chocolate Bayou|CB002');
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,364 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Decision Matrix - MH Remediation Estimation</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    .dm-page {
+      padding: 8px 14px 20px;
+      display: flex;
+      flex-direction: column;
+      min-width: 1280px;
+    }
+
+    .dm-body {
+      display: grid;
+      grid-template-columns: minmax(0, 760fr) minmax(320px, 360fr);
+      gap: 8px;
+      flex: 1;
+      min-height: 0;
+    }
+    .dm-body > * { min-width: 0; min-height: 0; }
+
+    /* ── Panel card ──────────────────────────────────────────────── */
+    .chart-panel {
+      background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 4px 18px rgba(31,39,92,0.4);
+      overflow: hidden;
+    }
+
+    /* ── Left: image panel ───────────────────────────────────────── */
+    .dm-image-panel {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      justify-content: flex-start;
+      overflow: auto;
+      position: relative;
+      background: #f3f2f1;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(96,94,92,0.45) transparent;
+    }
+    .dm-image-panel::-webkit-scrollbar { width: 5px; }
+    .dm-image-panel::-webkit-scrollbar-thumb { background: rgba(96,94,92,0.45); border-radius: 99px; }
+    .dm-image-toolbar {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      width: 100%;
+      padding: 7px 10px;
+      background: linear-gradient(180deg, #53565A, #3f4246);
+      border-bottom: 1px solid rgba(0,193,213,0.36);
+      box-shadow: 0 3px 12px rgba(0,0,0,0.30);
+    }
+    .dm-viewer-title {
+      color: rgba(241,245,251,0.92);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.01em;
+      white-space: nowrap;
+    }
+    .dm-viewer-tools {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .dm-zoom-btn {
+      min-width: 30px;
+      height: 26px;
+      border: 1px solid rgba(255,255,255,0.22);
+      border-radius: 5px;
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    .dm-zoom-btn:hover { background: rgba(255,255,255,0.16); border-color: rgba(255,255,255,0.36); }
+    .dm-zoom-label {
+      min-width: 46px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px solid rgba(255,255,255,0.18);
+      border-radius: 5px;
+      color: var(--text);
+      font-size: 11px;
+      background: rgba(255,255,255,0.10);
+    }
+    .dm-image-panel img {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 0 0 7px 7px;
+      flex-shrink: 0;
+      background: #f3f2f1;
+    }
+
+    /* ── Right column ────────────────────────────────────────────── */
+    .dm-right {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    /* Link box */
+    .dm-link-panel {
+      padding: 12px 14px;
+      flex-shrink: 0;
+    }
+    .dm-link-panel p {
+      margin: 0 0 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text);
+    }
+    .dm-link-panel a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      max-width: 100%;
+      padding: 8px 14px;
+      background: rgba(28,110,140,0.35);
+      border: 1px solid #1C6E8C;
+      border-radius: 6px;
+      color: #d0eaf7;
+      font-size: 12px;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .dm-link-panel a:hover { background: rgba(28,110,140,0.55); }
+    .dm-link-panel a svg { flex-shrink: 0; }
+
+    /* Color legend panel */
+    .dm-legend-panel {
+      flex: 1;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .dm-legend-panel h3 {
+      margin: 0 0 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      border-bottom: 1px solid rgba(113,144,186,0.2);
+      padding-bottom: 6px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0;
+      border-bottom: 1px solid rgba(113,144,186,0.08);
+    }
+    .legend-row:last-child { border-bottom: none; }
+    .legend-swatch {
+      width: 24px;
+      height: 24px;
+      border-radius: 5px;
+      flex-shrink: 0;
+      border: 1px solid rgba(255,255,255,0.12);
+    }
+    .legend-info { display: flex; flex-direction: column; gap: 2px; }
+    .legend-name { font-size: 13px; font-weight: 600; color: var(--text); }
+    .legend-hex  { font-size: 11px; color: var(--muted); font-family: monospace; }
+    .priority-block {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(113,144,186,0.15);
+    }
+    .priority-title {
+      font-size: 11px;
+      font-weight: 600;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      margin-bottom: 8px;
+    }
+    .priority-row {
+      display: grid;
+      grid-template-columns: 74px 1fr;
+      gap: 8px;
+      padding: 5px 0;
+      font-size: 12px;
+      line-height: 1.35;
+      color: var(--text);
+      border-bottom: 1px solid rgba(113,144,186,0.07);
+    }
+    .priority-row:last-child { border-bottom: 0; }
+    .priority-label { font-weight: 700; }
+
+    /* Subtab ghost */
+    .subtab-ghost {
+      display: inline-block; padding: 10px 14px;
+      font-size: 12px; color: rgba(180,192,208,0.45); cursor: default;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">MH Remediation Estimation</h1>
+      <p style="margin:3px 0 0;font-size:14px;">Manhole Condition Assessment</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ──────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">No-Action Report</a>
+  <a class="subtab-ghost" href="assessment-grade.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Assessment Grade</a>
+  <a class="subtab-ghost" href="defect-causes-45.html" style="text-decoration:none;color:rgba(180,192,208,0.65);">Defect Causes 4/5</a>
+  <button class="subtab active">Decision Matrix</button>
+</div>
+
+<!-- ── Page ──────────────────────────────────────────────────────────────── -->
+<div class="dm-page" id="dm-page">
+  <div class="dm-body">
+
+    <!-- Left: Decision Matrix image -->
+    <div class="chart-panel dm-image-panel">
+      <div class="dm-image-toolbar">
+        <div class="dm-viewer-title">Decision Matrix Viewer</div>
+        <div class="dm-viewer-tools">
+          <button class="dm-zoom-btn" type="button" onclick="setMatrixZoom(-0.15)" title="Zoom out">-</button>
+          <span class="dm-zoom-label" id="dm-zoom-label">100%</span>
+          <button class="dm-zoom-btn" type="button" onclick="setMatrixZoom(0.15)" title="Zoom in">+</button>
+          <button class="dm-zoom-btn" type="button" onclick="resetMatrixZoom()" title="Fit width">Fit</button>
+        </div>
+      </div>
+      <img id="dm-matrix-img" src="assets/decision-matrix.png" alt="Decision Matrix Flowchart" />
+    </div>
+
+    <!-- Right: link + color legend -->
+    <div class="dm-right">
+
+      <!-- Color legend -->
+      <div class="chart-panel dm-legend-panel">
+        <h3>Decision Matrix Color Key</h3>
+
+        <div class="legend-row">
+          <div class="legend-swatch" style="background:#001E60;"></div>
+          <div class="legend-info">
+            <span class="legend-name">Navy</span>
+            <span class="legend-hex">#001E60</span>
+          </div>
+        </div>
+
+        <div class="legend-row">
+          <div class="legend-swatch" style="background:#00C1D5;"></div>
+          <div class="legend-info">
+            <span class="legend-name">Teal</span>
+            <span class="legend-hex">#00C1D5</span>
+          </div>
+        </div>
+
+        <div class="legend-row">
+          <div class="legend-swatch" style="background:#53565A;"></div>
+          <div class="legend-info">
+            <span class="legend-name">Gray</span>
+            <span class="legend-hex">#53565A</span>
+          </div>
+        </div>
+
+        <div class="legend-row">
+          <div class="legend-swatch" style="background:#688197;"></div>
+          <div class="legend-info">
+            <span class="legend-name">Light Gray</span>
+            <span class="legend-hex">#688197</span>
+          </div>
+        </div>
+
+        <div class="legend-row">
+          <div class="legend-swatch" style="background:#F68D2E;"></div>
+          <div class="legend-info">
+            <span class="legend-name">Orange</span>
+            <span class="legend-hex">#F68D2E</span>
+          </div>
+        </div>
+
+        <div class="priority-block">
+          <div class="priority-title">Priority Criteria</div>
+          <div class="priority-row">
+            <span class="priority-label" style="color:#FC2A00;">High</span>
+            <span>Missing manhole cover, collapse</span>
+          </div>
+          <div class="priority-row">
+            <span class="priority-label" style="color:#F68D2E;">Medium</span>
+            <span>Crossbore, broken, infiltration gushes</span>
+          </div>
+          <div class="priority-row">
+            <span class="priority-label" style="color:#688197;">Runner</span>
+            <span>Inflow observations</span>
+          </div>
+          <div class="priority-row">
+            <span class="priority-label" style="color:#688197;">Low / Other</span>
+            <span>O&amp;M</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let matrixZoom = 1;
+
+function applyMatrixZoom() {
+  const img = document.getElementById('dm-matrix-img');
+  const label = document.getElementById('dm-zoom-label');
+  if (!img || !label) return;
+  img.style.width = `${Math.round(matrixZoom * 100)}%`;
+  label.textContent = `${Math.round(matrixZoom * 100)}%`;
+}
+
+function setMatrixZoom(delta) {
+  matrixZoom = Math.max(0.75, Math.min(2.25, matrixZoom + delta));
+  applyMatrixZoom();
+}
+
+function resetMatrixZoom() {
+  matrixZoom = 1;
+  applyMatrixZoom();
+}
+
+function setPageHeight() {
+  const topbar  = document.querySelector('.topbar');
+  const subtabs = document.querySelector('.subtabs');
+  const page    = document.getElementById('dm-page');
+  const avail   = window.innerHeight
+    - (topbar  ? topbar.offsetHeight  : 0)
+    - (subtabs ? subtabs.offsetHeight : 0)
+    - 32;
+  page.style.height = avail + 'px';
+}
+window.addEventListener('resize', setPageHeight);
+document.addEventListener('DOMContentLoaded', () => {
+  setPageHeight();
+  applyMatrixZoom();
+});
+</script>
+</body>
+</html>

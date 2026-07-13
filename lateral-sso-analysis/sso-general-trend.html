@@ -1,0 +1,695 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSO General Trend - Wastewater Operations</title>
+  <link rel="stylesheet" href="styles.css" />
+  <style>
+    /* ── Page layout ─────────────────────────────────────────── */
+    .sso-page { padding: 0 18px 28px; }
+
+    .slicer-bar {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 0 14px;
+      border-bottom: 1px solid rgba(122,156,199,0.12);
+      margin-bottom: 16px;
+    }
+    .slicer-label {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      white-space: nowrap;
+    }
+    .slicer-input {
+      height: 36px;
+      padding: 0 10px;
+      border-radius: 8px;
+      border: 1px solid rgba(108,143,186,0.36);
+      background: #102032;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+    }
+    .slicer-input::-webkit-calendar-picker-indicator {
+      filter: invert(1);
+      opacity: 0.9;
+    }
+    .slicer-sep { color: var(--muted); font-size: 13px; }
+
+    .sso-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto;
+      gap: 14px;
+    }
+    /* Prevent grid columns from expanding to fit wide chart content.
+       Without this, a 1200px inner div would push each 1fr column to 1200px
+       and the page itself would scroll instead of the chart panel. */
+    .sso-grid > * { min-width: 0; }
+
+    /* pivot table */
+    .pivot-wrap {
+      overflow-x: auto;
+      border-radius: 0 0 7px 7px;
+    }
+    .pivot-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    .pivot-table th, .pivot-table td {
+      padding: 8px 12px;
+      border-bottom: 1px solid rgba(113,144,186,0.1);
+      text-align: center;
+      white-space: nowrap;
+    }
+    .pivot-table th { font-weight: 700; color: rgba(222,232,244,0.84); }
+    .pivot-table thead tr:first-child th { background: rgba(28,36,62,0.96); }
+    .pivot-table thead tr:nth-child(2) th { background: rgba(22,30,52,0.96); font-size: 12px; }
+    .pivot-table td.row-label { text-align: left; font-weight: 600; color: var(--text); }
+    .pivot-table tbody tr:nth-child(odd)  { background: rgba(21,35,52,0.88); }
+    .pivot-table tbody tr:nth-child(even) { background: rgba(18,29,43,0.88); }
+    .pivot-table tbody tr:hover { background: rgba(40,77,124,0.5); }
+    .pct-pos { color: #ff8a75; }
+    .pct-neg { color: #41b9a8; }
+    .pct-blank { color: var(--muted); }
+
+    /* panel */
+    .panel-title-bar {
+      background: #001E60;
+      color: #fff;
+      font-size: 13px;
+      font-weight: 600;
+      text-align: center;
+      padding: 7px 10px;
+      border-radius: 7px 7px 0 0;
+      letter-spacing: 0.01em;
+    }
+    .panel-body { padding: 12px 14px 14px; }
+    .chart-panel {
+      background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 6px 24px rgba(31,39,92,0.45);
+      /* no overflow:hidden - lets child scroll containers work */
+    }
+
+    /* horizontal scroll wrapper for charts */
+    .chart-scroll-outer {
+      overflow-x: auto;
+      overflow-y: hidden;
+      width: 100%;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,0.3) transparent;
+    }
+    .chart-scroll-outer::-webkit-scrollbar { height: 5px; }
+    .chart-scroll-outer::-webkit-scrollbar-track { background: transparent; }
+    .chart-scroll-outer::-webkit-scrollbar-thumb { background: rgba(139,175,214,0.3); border-radius: 99px; }
+
+    .chart-scroll-inner {
+      height: 310px;
+      min-width: 100%;
+      position: relative;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ─────────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <div>
+      <h1 style="font-size:22px;margin:0;">Lateral SSO Analysis</h1>
+      <p style="margin:3px 0 0;font-size:14px;">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ────────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html"
+     style="text-decoration:none;">Lateral SSO Tracking</a>
+  <button class="subtab active">SSO General Trend</button>
+  <a class="subtab-ghost" href="sso-cause-trend.html"
+     style="text-decoration:none;">SSO Cause Trend</a>
+</div>
+
+<!-- ── Page body ───────────────────────────────────────────────────────────── -->
+<div class="sso-page">
+
+  <!-- Date slicer -->
+  <div class="slicer-bar">
+    <span class="slicer-label">SSO Start Time:</span>
+    <input id="slicer-start" type="date" class="slicer-input" min="2021-04-01" />
+    <span class="slicer-sep">→</span>
+    <input id="slicer-end" type="date" class="slicer-input" />
+    <span id="slicer-summary" class="slicer-label" style="margin-left:8px;"></span>
+  </div>
+
+  <!-- 2-column chart grid -->
+  <div class="sso-grid">
+
+    <!-- Left col, row 1: All Public + Private Lateral SSO Trend -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">All (Public + Private) Lateral SSO Trend</div>
+      <div class="panel-body" style="padding:8px 10px 10px;">
+        <div class="chart-scroll-outer">
+          <div id="chart-inner-1" class="chart-scroll-inner">
+            <canvas id="chart-all-trend"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right col, row 1: Lateral SSO Spike -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Lateral SSO Spike</div>
+      <div class="panel-body" style="padding:8px 10px 10px;">
+        <div class="chart-scroll-outer">
+          <div id="chart-inner-2" class="chart-scroll-inner">
+            <canvas id="chart-spike"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Left col, row 2: Change Detail pivot table -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Change Detail</div>
+      <div class="panel-body" style="padding:0;">
+        <div class="pivot-wrap">
+          <table class="pivot-table" id="pivot-table">
+            <thead>
+              <tr>
+                <th rowspan="2" style="text-align:left;">Program Year</th>
+                <th colspan="2">Private</th>
+                <th colspan="2">Public</th>
+              </tr>
+              <tr>
+                <th>Count</th><th>% Chg</th>
+                <th>Count</th><th>% Chg</th>
+              </tr>
+            </thead>
+            <tbody id="pivot-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right col, row 2: Public vs Private Trend Comparison -->
+    <div class="chart-panel">
+      <div class="panel-title-bar">Public vs. Private Trend Comparison</div>
+      <div class="panel-body" style="padding:8px 10px 10px;">
+        <div class="chart-scroll-outer">
+          <div id="chart-inner-3" class="chart-scroll-inner">
+            <canvas id="chart-pub-priv"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /sso-grid -->
+</div><!-- /sso-page -->
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+// ── Constants ────────────────────────────────────────────────────────────────
+const COLOR_PUBLIC  = '#1C6E8C';
+const COLOR_PRIVATE = '#2A9D8F';
+const COLOR_PUB_MA  = '#E8874A';
+const COLOR_PRIV_MA = '#4D6FBA';
+const GRID_COLOR    = 'rgba(139,175,214,0.12)';
+const TICK_COLOR    = 'rgba(180,192,208,0.85)';
+const PX_PER_BAR    = 28; // minimum pixels per bar for horizontal scroll
+
+// ── State ────────────────────────────────────────────────────────────────────
+let chart1, chart2, chart3;
+let startDate, endDate;
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function parseLocalDate(str) {
+  const [y, m, d] = str.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function toInputVal(d) {
+  return [
+    d.getFullYear(),
+    String(d.getMonth() + 1).padStart(2, '0'),
+    String(d.getDate()).padStart(2, '0'),
+  ].join('-');
+}
+
+function fmtMonthLabel(monthStart) {
+  return parseLocalDate(monthStart).toLocaleDateString('en-US', { month: 'short' });
+}
+
+// Include a month if its period [monthStart, next month start) overlaps [startDate, endDate].
+// This means: selecting June 25 as start still shows June (partial month included).
+function filteredMonths() {
+  return window.DATA.ssoByMonth.filter(r => {
+    const ms = parseLocalDate(r.monthStart);
+    const nextMs = new Date(ms.getFullYear(), ms.getMonth() + 1, 1);
+    return ms <= endDate && nextMs > startDate;
+  });
+}
+
+function fmtPct(v) {
+  if (v === null || v === undefined) return '<span class="pct-blank"></span>';
+  const pct = Math.round(v * 100);
+  const cls = v > 0 ? 'pct-pos' : 'pct-neg';
+  return `<span class="${cls}">${pct}%</span>`;
+}
+
+// Set the scroll-inner div width so that bars have at least PX_PER_BAR each.
+// min-width:100% in CSS ensures we never go narrower than the container.
+function setScrollWidth(innerDivId, nMonths) {
+  const el = document.getElementById(innerDivId);
+  if (el) el.style.width = (nMonths * PX_PER_BAR) + 'px';
+}
+
+function enhanceChartScrolling() {
+  document.querySelectorAll('.chart-scroll-outer').forEach(el => {
+    el.addEventListener('wheel', e => {
+      if (document.activeElement && document.activeElement.type === 'date') return;
+      if (el.scrollWidth <= el.clientWidth) return;
+      const primaryDelta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (!primaryDelta) return;
+      e.preventDefault();
+      el.scrollLeft += primaryDelta * 2.8;
+    }, { passive: false });
+  });
+}
+
+// ── Plugin: Program Year group spans drawn below x-axis ───────────────────────────
+const progYearGroupPlugin = {
+  id: 'progYearGroups',
+  afterDraw(chart) {
+    const months = chart.options.plugins.progYearGroups && chart.options.plugins.progYearGroups.months;
+    if (!months || !months.length) return;
+    const { ctx, chartArea, scales } = chart;
+    const xScale = scales.x;
+
+    const groups = [];
+    months.forEach((m, i) => {
+      const last = groups[groups.length - 1];
+      if (last && last.label === m.progYear) {
+        last.endIdx = i;
+      } else {
+        groups.push({ label: m.progYear || '', startIdx: i, endIdx: i });
+      }
+    });
+
+    const lineY  = chartArea.bottom + 30;
+    const bandY  = chartArea.bottom + 39;
+
+    ctx.save();
+
+    groups.forEach((g, gi) => {
+      const x1  = xScale.getPixelForValue(g.startIdx);
+      const x2  = xScale.getPixelForValue(g.endIdx);
+      const mid = (x1 + x2) / 2;
+
+      if (gi > 0) {
+        const sepX = (xScale.getPixelForValue(g.startIdx - 1) + x1) / 2;
+        ctx.strokeStyle = 'rgba(139,175,214,0.22)';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(sepX, chartArea.top);
+        ctx.lineTo(sepX, chartArea.bottom + 28);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+
+      ctx.strokeStyle = 'rgba(139,175,214,0.35)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x1, lineY);
+      ctx.lineTo(x2, lineY);
+      ctx.stroke();
+
+      ctx.font = 'bold 10px Arial';
+      ctx.fillStyle = 'rgba(198,211,228,0.95)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      ctx.fillText(g.label, mid, bandY);
+    });
+
+    ctx.restore();
+  }
+};
+
+// ── Plugin: data labels on bars ───────────────────────────────────────────────
+const dataLabelPlugin = {
+  id: 'barDataLabels',
+  afterDatasetsDraw(chart) {
+    const opts = chart.options.plugins.barDataLabels;
+    if (!opts || !opts.show) return;
+    const { ctx, scales } = chart;
+    const yScale = scales.y;
+    const n = chart.data.labels.length;
+    const skip = Math.max(1, Math.ceil(n / 20)); // ~20 labels max
+
+    if (opts.showStackSegments) drawStackSegmentLabels(chart);
+
+    if (opts.showStackTotal) {
+      const totals = new Array(n).fill(0);
+      chart.data.datasets.forEach(ds => {
+        if (ds.type === 'line') return;
+        ds.data.forEach((v, i) => { totals[i] += (v || 0); });
+      });
+      let lastBarMeta = null;
+      chart.data.datasets.forEach((ds, di) => {
+        if (ds.type !== 'line') lastBarMeta = chart.getDatasetMeta(di);
+      });
+      if (!lastBarMeta) return;
+      for (let i = 0; i < n; i++) {
+        if (i % skip !== 0) continue;
+        const total = totals[i];
+        if (!total) continue;
+        const bar = lastBarMeta.data[i];
+        if (!bar) continue;
+        const { x } = bar.getProps(['x'], true);
+        const y = yScale.getPixelForValue(total);
+        drawBarLabel(ctx, total.toLocaleString(), x, y);
+      }
+    } else {
+      chart.data.datasets.forEach((ds, di) => {
+        if (ds.type === 'line') return;
+        const meta = chart.getDatasetMeta(di);
+        for (let i = 0; i < n; i++) {
+          if (i % skip !== 0) continue;
+          const value = ds.data[i];
+          if (!value) continue;
+          const bar = meta.data[i];
+          if (!bar) continue;
+          const { x, y } = bar.getProps(['x', 'y'], true);
+          drawBarLabel(ctx, value.toLocaleString(), x, y);
+        }
+      });
+    }
+  }
+};
+
+function drawStackSegmentLabels(chart) {
+  const { ctx } = chart;
+  chart.data.datasets.forEach((ds, di) => {
+    if (ds.type === 'line') return;
+    const meta = chart.getDatasetMeta(di);
+    for (let i = 0; i < chart.data.labels.length; i++) {
+      const value = ds.data[i];
+      if (!value) continue;
+      const bar = meta.data[i];
+      if (!bar) continue;
+      const { x, y, base, width } = bar.getProps(['x', 'y', 'base', 'width'], true);
+      const segmentHeight = Math.abs(base - y);
+      const text = value.toLocaleString();
+      ctx.save();
+      ctx.font = 'bold 11px Arial';
+      const textWidth = ctx.measureText(text).width;
+      ctx.restore();
+      if (segmentHeight < 18 || width < textWidth + 8) continue;
+      drawInsideBarLabel(ctx, text, x, (y + base) / 2);
+    }
+  });
+}
+
+function drawInsideBarLabel(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = 'bold 11px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineWidth = 3;
+  ctx.strokeStyle = 'rgba(7,14,24,0.62)';
+  ctx.fillStyle = 'rgba(255,255,255,0.96)';
+  ctx.strokeText(text, x, y);
+  ctx.fillText(text, x, y);
+  ctx.restore();
+}
+
+function drawBarLabel(ctx, text, x, y) {
+  ctx.save();
+  ctx.font = 'bold 12px Arial';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'bottom';
+  const w = ctx.measureText(text).width + 8;
+  const h = 15;
+  ctx.fillStyle = 'rgba(107,0,123,0.28)';
+  const rx = x - w / 2, ry = y - h - 2;
+  if (ctx.roundRect) {
+    ctx.beginPath();
+    ctx.roundRect(rx, ry, w, h, 3);
+    ctx.fill();
+  } else {
+    ctx.fillRect(rx, ry, w, h);
+  }
+  ctx.fillStyle = 'rgba(235,220,240,0.96)';
+  ctx.fillText(text, x, y - 2);
+  ctx.restore();
+}
+
+Chart.register(progYearGroupPlugin, dataLabelPlugin);
+
+// ── Chart defaults ────────────────────────────────────────────────────────────
+Chart.defaults.color = TICK_COLOR;
+Chart.defaults.font.family = "'Segoe UI', Arial, sans-serif";
+Chart.defaults.font.size = 11;
+
+function baseScales(months, yTitle) {
+  return {
+    x: {
+      grid: { color: GRID_COLOR },
+      ticks: {
+        maxRotation: 45,
+        autoSkip: false, // show all ticks - chart is scrollable
+        color: TICK_COLOR,
+        font: { size: 10 },
+        padding: 6,
+        callback(val) {
+          const i = Math.round(val);
+          return months[i] ? fmtMonthLabel(months[i].monthStart) : '';
+        },
+      },
+    },
+    y: {
+      grid: { color: GRID_COLOR },
+      title: { display: true, text: yTitle, color: TICK_COLOR, font: { size: 11 } },
+      ticks: { color: TICK_COLOR },
+    },
+  };
+}
+
+function baseOptions(months, yTitle, extraPlugins) {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    animation: false,
+    layout: { padding: { bottom: 48 } },
+    interaction: { mode: 'index', intersect: false },
+    plugins: {
+      legend: {
+        labels: { color: TICK_COLOR, boxWidth: 14, font: { size: 11 } },
+      },
+      tooltip: {
+        backgroundColor: 'rgba(12,21,34,0.92)',
+        borderColor: 'rgba(139,175,214,0.3)',
+        borderWidth: 1,
+        titleColor: '#f1f5fb',
+        bodyColor: '#b4c0d0',
+      },
+      progYearGroups: { months },
+      barDataLabels: { show: true, ...extraPlugins },
+    },
+    scales: baseScales(months, yTitle),
+  };
+}
+
+// ── Chart 1: All (Public + Private) Lateral SSO Trend ────────────────────────
+function buildChart1(months) {
+  setScrollWidth('chart-inner-1', months.length);
+  const labels   = months.map(r => r.monthStart);
+  const pubData  = months.map(r => r.publicCount);
+  const privData = months.map(r => r.privateCount);
+
+  const opts = baseOptions(months, 'SSO Count', { showStackTotal: true, showStackSegments: true });
+  opts.scales.y.stacked = true;
+  opts.scales.x.stacked = true;
+
+  if (chart1) chart1.destroy();
+  chart1 = new Chart(document.getElementById('chart-all-trend'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Public',  data: pubData,  backgroundColor: COLOR_PUBLIC,  stack: 'sso', borderRadius: 2 },
+        { label: 'Private', data: privData, backgroundColor: COLOR_PRIVATE, stack: 'sso', borderRadius: 2 },
+      ],
+    },
+    options: opts,
+  });
+}
+
+// ── Chart 2: Lateral SSO Spike ────────────────────────────────────────────────
+function buildChart2(months) {
+  setScrollWidth('chart-inner-2', months.length);
+  const labels  = months.map(r => r.monthStart);
+  const pubData = months.map(r => r.publicCount);
+  const maData  = months.map(r => r.publicMovingAvg);
+
+  if (chart2) chart2.destroy();
+  chart2 = new Chart(document.getElementById('chart-spike'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar',  label: 'Public Lateral SSO', data: pubData, backgroundColor: '#6B007B', borderRadius: 2, order: 2 },
+        { type: 'line', label: '12-Month Moving Avg', data: maData,  borderColor: COLOR_PUB_MA, backgroundColor: 'transparent', borderWidth: 3, borderDash: [5, 4], pointRadius: 0, tension: 0.4, spanGaps: false, order: 1 },
+      ],
+    },
+    options: baseOptions(months, 'SSO Count', { showStackTotal: false }),
+  });
+}
+
+// ── Chart 3: Public vs Private Trend Comparison ───────────────────────────────
+function buildChart3(months) {
+  setScrollWidth('chart-inner-3', months.length);
+  const labels   = months.map(r => r.monthStart);
+  const pubData  = months.map(r => r.publicCount);
+  const privData = months.map(r => r.privateCount);
+  const pubMA    = months.map(r => r.publicMovingAvg);
+  const privMA   = months.map(r => r.privateMovingAvg);
+
+  if (chart3) chart3.destroy();
+  chart3 = new Chart(document.getElementById('chart-pub-priv'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type: 'bar',  label: 'Public',           data: pubData,  backgroundColor: COLOR_PUBLIC,  borderRadius: 2, order: 4 },
+        { type: 'bar',  label: 'Private',          data: privData, backgroundColor: COLOR_PRIVATE, borderRadius: 2, order: 3 },
+        { type: 'line', label: '12M MA (Public)',  data: pubMA,    borderColor: COLOR_PUB_MA,  backgroundColor: 'transparent', borderWidth: 3, borderDash: [5, 4], pointRadius: 0, tension: 0.4, spanGaps: false, order: 2 },
+        { type: 'line', label: '12M MA (Private)', data: privMA,   borderColor: COLOR_PRIV_MA, backgroundColor: 'transparent', borderWidth: 3, borderDash: [5, 4], pointRadius: 0, tension: 0.4, spanGaps: false, order: 1 },
+      ],
+    },
+    options: baseOptions(months, 'SSO Count', { showStackTotal: false }),
+  });
+}
+
+// ── Pivot table ───────────────────────────────────────────────────────────────
+function buildPivot(months) {
+  const byYear = {};
+  months.forEach(r => {
+    const y = r.progYear;
+    if (!y) return;
+    if (!byYear[y]) byYear[y] = { pub: 0, priv: 0, progYearNo: r.progYearNo };
+    byYear[y].pub  += r.publicCount;
+    byYear[y].priv += r.privateCount;
+  });
+
+  const fullYear = {};
+  window.DATA.ssoByMonth.forEach(r => {
+    const y = r.progYear;
+    if (!y) return;
+    if (!fullYear[y]) fullYear[y] = { pub: 0, priv: 0, progYearNo: r.progYearNo };
+    fullYear[y].pub += r.publicCount;
+    fullYear[y].priv += r.privateCount;
+  });
+
+  const yearKeys = Object.keys(byYear).sort((a, b) => byYear[a].progYearNo - byYear[b].progYearNo);
+  const today    = new Date();
+  const curCDNo  = (today.getMonth() >= 3 ? today.getFullYear() : today.getFullYear() - 1) - 2020;
+  const tbody    = document.getElementById('pivot-body');
+  tbody.innerHTML = '';
+
+  yearKeys.forEach(year => {
+    const cur     = byYear[year];
+    const no      = cur.progYearNo;
+    const prevKey = Object.keys(fullYear).find(k => fullYear[k].progYearNo === no - 1);
+    const prev    = prevKey ? fullYear[prevKey] : null;
+    const isCur   = (no === curCDNo);
+
+    const privPct = (!isCur && prev && prev.priv > 0) ? (cur.priv - prev.priv) / prev.priv : null;
+    const pubPct  = (!isCur && prev && prev.pub  > 0) ? (cur.pub  - prev.pub)  / prev.pub  : null;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="row-label">${year}</td>
+      <td>${cur.priv.toLocaleString()}</td>
+      <td>${fmtPct(privPct)}</td>
+      <td>${cur.pub.toLocaleString()}</td>
+      <td>${fmtPct(pubPct)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Slicer summary ────────────────────────────────────────────────────────────
+function updateSummary(months) {
+  const total = months.reduce((s, r) => s + r.totalCount, 0);
+  document.getElementById('slicer-summary').textContent =
+    `${months.length} months · ${total.toLocaleString()} lateral SSO events`;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────────
+function render() {
+  const months = filteredMonths();
+  buildChart1(months);
+  buildChart2(months);
+  buildChart3(months);
+  buildPivot(months);
+  updateSummary(months);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+function init() {
+  const allMonths = window.DATA.ssoByMonth;
+  const earliest  = allMonths[0].monthStart;
+  const latest    = allMonths[allMonths.length - 1].monthStart;
+  const latestDate = parseLocalDate(latest);
+
+  // Default: last 19 months (18 months before the latest month, inclusive)
+  const defaultStart = new Date(latestDate.getFullYear(), latestDate.getMonth() - 18, 1);
+  const defaultStartStr = toInputVal(defaultStart);
+
+  document.getElementById('slicer-start').value = defaultStartStr;
+  document.getElementById('slicer-start').min   = earliest;
+  document.getElementById('slicer-start').max   = latest;
+  document.getElementById('slicer-end').value   = latest;
+  document.getElementById('slicer-end').min     = defaultStartStr;
+  document.getElementById('slicer-end').max     = latest;
+
+  startDate = defaultStart;
+  endDate   = latestDate;
+
+  document.getElementById('slicer-start').addEventListener('change', e => {
+    startDate = e.target.value ? parseLocalDate(e.target.value) : defaultStart;
+    if (startDate > endDate) {
+      endDate = startDate;
+      document.getElementById('slicer-end').value = toInputVal(endDate);
+    }
+    document.getElementById('slicer-end').min = toInputVal(startDate);
+    render();
+  });
+  document.getElementById('slicer-end').addEventListener('change', e => {
+    endDate = e.target.value ? parseLocalDate(e.target.value) : latestDate;
+    if (endDate < startDate) {
+      startDate = endDate;
+      document.getElementById('slicer-start').value = toInputVal(startDate);
+    }
+    document.getElementById('slicer-start').max = toInputVal(endDate);
+    render();
+  });
+
+  enhanceChartScrolling();
+  render();
+}
+
+init();
+</script>
+</body>
+</html>

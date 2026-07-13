@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Wastewater Operations KPIs - Overview</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    html, body { height: 100%; overflow: hidden; display: flex; flex-direction: column; min-width: 0; }
+
+    /* ── Topbar overrides ── */
+    .topbar { flex-shrink: 0; padding: 12px 18px; gap: 14px; }
+    .tb-title {
+      font-size: 20px; font-weight: 700; color: #fff; letter-spacing: -0.01em;
+    }
+    .tb-slicer { display: flex; flex-direction: column; gap: 2px; }
+    .tb-slicer-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .tb-slicer-inputs { display: flex; align-items: center; gap: 6px; }
+    .tb-slicer-inputs input[type="date"] {
+      background: rgba(94,127,168,0.2); border: 1px solid rgba(124,160,204,0.3);
+      color: var(--text); padding: 5px 8px; border-radius: 7px; font-size: 13px; font-family: inherit;
+    }
+    .tb-slicer-sep { color: var(--muted); font-size: 12px; }
+    .tb-refresh { text-align: right; }
+    .tb-refresh-label { font-size: 10px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; }
+    .tb-refresh-val { font-size: 13px; color: #F10101; font-style: italic; font-weight: 600; }
+
+    /* ── Main 2×2 grid ── */
+    .page-body {
+      flex: 1; min-height: 0;
+      display: grid;
+      grid-template-columns: 50fr 47fr;
+      grid-template-rows: 1fr 1fr;
+      gap: 8px;
+      padding: 4px 10px 10px;
+    }
+
+    /* ── KPI card cell (white-bg card + overlay Details button) ── */
+    .kpi-cell { position: relative; display: flex; flex-direction: column; min-height: 0; }
+
+    .kpi-vis-title {
+      background: #001E60; color: #fff;
+      font-family: Arial, sans-serif; font-size: 9.5pt; text-align: center;
+      padding: 3px 8px; border-radius: 7px 7px 0 0; flex-shrink: 0;
+    }
+
+    .kpi-vis-body {
+      flex: 1; min-height: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-top: none;
+      border-radius: 0 0 7px 7px;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.35);
+      overflow: auto; padding: 5px;
+    }
+
+    /* KPI card - dark theme */
+    .kpi-vis-body .card {
+      font-family: Segoe UI, Arial, sans-serif; background: transparent;
+      border: none; border-radius: 10px; padding: 14px;
+    }
+    .kpi-vis-body .title {
+      font-size: 15px; font-weight: 700; color: #f1f5fb;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 6px;
+    }
+    .kpi-vis-body .target { font-size: 11px; color: #b4c0d0; }
+    .kpi-vis-body .status-dot {
+      width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; margin-left: 6px;
+    }
+    .kpi-vis-body .value { font-size: 28px; font-weight: 700; color: #f1f5fb; margin-bottom: 6px; }
+    .kpi-vis-body .bar-bg {
+      width: 100%; height: 8px; border-radius: 5px;
+      background: rgba(255,255,255,0.1); margin-bottom: 6px; overflow: hidden;
+    }
+    .kpi-vis-body .bar-fill { height: 100%; }
+    .kpi-vis-body .subtitle { font-size: 12px; color: #b4c0d0; margin-bottom: 10px; }
+    .kpi-vis-body .formula {
+      background: rgba(255,255,255,0.05); padding: 8px; border-radius: 6px;
+      font-size: 12px; border: 1px solid rgba(139,175,214,0.18); color: #b4c0d0; line-height: 1.5;
+    }
+    .kpi-vis-body .formula strong { color: #f1f5fb; }
+
+    /* Details navigation button */
+    .details-btn {
+      position: absolute; bottom: 10px; right: 12px; z-index: 10;
+      background: rgba(0,30,96,0.73); color: #fff;
+      font-weight: 700; font-size: 13px;
+      padding: 7px 18px; border-radius: 21px;
+      text-decoration: none; box-shadow: 0 2px 7px rgba(0,30,96,0.4);
+      transition: background 0.15s;
+    }
+    .details-btn:hover { background: rgba(0,30,96,0.95); }
+
+    /* ── Line chart cell ── */
+    .chart-cell {
+      display: flex; flex-direction: column; min-height: 0;
+      background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+      border: 1px solid #1F275C; border-radius: 7px;
+      box-shadow: 0 3px 10px rgba(31,39,92,0.35); overflow: hidden;
+    }
+    .chart-cell-title {
+      background: #001E60; color: #fff;
+      font-family: Arial, sans-serif; font-size: 9.5pt;
+      text-align: center; padding: 3px 8px; flex-shrink: 0;
+    }
+    .chart-wrap { flex: 1; min-height: 0; padding: 6px; position: relative; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <span class="tb-mark">WO</span>
+  <span class="tb-title">Wastewater Operations KPIs</span>
+  <div style="flex:1"></div>
+  <div class="tb-slicer">
+    <div class="tb-slicer-label">Report Time Range</div>
+    <div class="tb-slicer-inputs">
+      <input type="date" id="dt-start" value="2025-07-01">
+      <span class="tb-slicer-sep">-</span>
+      <input type="date" id="dt-end" value="2026-04-30">
+    </div>
+  </div>
+  <div class="tb-refresh">
+    <div class="tb-refresh-label">Last Update</div>
+    <div class="tb-refresh-val" id="last-update">-</div>
+  </div>
+</div>
+
+<div class="subtabs">
+  <button class="subtab active">Overview</button>
+  <a class="subtab-ghost subtab" href="sso-resolution.html">SSO Resolution Time</a>
+  <a class="subtab-ghost subtab" href="sewer-assessment.html">Sewer Assessment</a>
+  <a class="subtab-ghost subtab" href="leak-repair.html">Leak Repair Perf.</a>
+</div>
+
+<div class="page-body">
+
+  <!-- SSO KPI - top-left -->
+  <div class="kpi-cell">
+    <div class="kpi-vis-title">Resolve 95% of public SSOs within 48 hours of notification</div>
+    <div class="kpi-vis-body" id="sso-card"></div>
+    <a class="details-btn" href="sso-resolution.html">Details</a>
+  </div>
+
+  <!-- Leak Repair KPI - top-right -->
+  <div class="kpi-cell">
+    <div class="kpi-vis-title">Water Leak Repair Completed In 7 Days</div>
+    <div class="kpi-vis-body" id="leak-card"></div>
+    <a class="details-btn" href="leak-repair.html">Details</a>
+  </div>
+
+  <!-- Sewer Assessment KPI - bottom-left -->
+  <div class="kpi-cell">
+    <div class="kpi-vis-title">Assess 10% of wastewater mains annually</div>
+    <div class="kpi-vis-body" id="sewer-card"></div>
+    <a class="details-btn" href="sewer-assessment.html">Details</a>
+  </div>
+
+  <!-- Performance Overview line chart - bottom-right -->
+  <div class="chart-cell">
+    <div class="chart-cell-title">Operations: Performance Overview</div>
+    <div class="chart-wrap"><canvas id="perf-chart"></canvas></div>
+  </div>
+
+</div>
+
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+'use strict';
+
+// ── Date helpers ──────────────────────────────────────────────────────────────
+
+function parseLocalDate(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
+function monthKey(dt) {
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}`;
+}
+
+function buildMonthSpine(startDt, endDt) {
+  const months = [];
+  const d = new Date(startDt.getFullYear(), startDt.getMonth(), 1);
+  const last = new Date(endDt.getFullYear(), endDt.getMonth(), 1);
+  while (d <= last) {
+    months.push(new Date(d));
+    d.setMonth(d.getMonth() + 1);
+  }
+  return months;
+}
+
+function fmtPct(v, decimals = 0) {
+  return (v * 100).toFixed(decimals) + '%';
+}
+
+function fmtNum(v, decimals = 1) {
+  return v.toLocaleString('en-US', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
+}
+
+// ── KPI computations ─────────────────────────────────────────────────────────
+
+function computeSSO(startDt, endDt) {
+  const endEx = new Date(endDt); endEx.setDate(endEx.getDate() + 1);
+  const rows = DATA_SSO.rows.filter(r => {
+    if (!r.IncidentDatetime || r.SSOProb !== 'Public') return false;
+    const dt = new Date(r.IncidentDatetime);
+    return dt >= startDt && dt < endEx;
+  });
+  const resolved = rows.filter(r => r.ResponseHours !== null);
+  const total = resolved.length;
+  const within48 = resolved.filter(r => r.Within48 === 1).length;
+  return { total, within48, over48: total - within48, pct: total > 0 ? within48 / total : 0 };
+}
+
+function computeLeak(startDt, endDt) {
+  const endEx = new Date(endDt); endEx.setDate(endEx.getDate() + 1);
+  const rows = DATA_LEAK.rows.filter(r => {
+    if (!r.initdttm) return false;
+    const dt = new Date(r.initdttm);
+    return dt >= startDt && dt < endEx;
+  });
+  const completed = rows.filter(r => r.completed_date !== null);
+  const within7 = completed.filter(r => r.CompletedWithin7 === 1).length;
+  return { completed: completed.length, within7, pct: completed.length > 0 ? within7 / completed.length : 0 };
+}
+
+function computeSewer(startDt, endDt) {
+  const endEx = new Date(endDt); endEx.setDate(endEx.getDate() + 1);
+  const valid = DATA_SEWER.rows.filter(r => {
+    if (!r.Month || r['Monthly Inspection'] === null) return false;
+    const dt = new Date(r.Month);
+    return dt >= startDt && dt < endEx;
+  });
+  if (!valid.length) return null;
+  valid.sort((a, b) => new Date(b.Month) - new Date(a.Month));
+  const r = valid[0];
+  return {
+    latestMonth: r.Month,
+    monthly: r['Monthly Inspection'],
+    cumulative: r['Cumulative Inspection'],
+    percent: r.Percent,
+    target: r['Cumulative Target'],
+    annualGoal: r['Annual Goal'],
+  };
+}
+
+// ── KPI card HTML renderers ──────────────────────────────────────────────────
+
+function renderSSO(k) {
+  const color = k.pct >= 0.95 ? '#0f6d39' : '#d93025';
+  const pctTxt = fmtPct(k.pct);
+  const barW = Math.min(100, k.pct * 100).toFixed(1);
+  return `<div class="card">
+    <div class="title">
+      <div>Average SSO 48-Hour Resolution</div>
+      <div class="status-dot" style="background:${color}"></div>
+    </div>
+    <div class="value">${pctTxt}</div>
+    <div class="bar-bg"><div class="bar-fill" style="background:${color};width:${barW}%"></div></div>
+    <div class="subtitle">Goal: 95% resolved within 48 hours</div>
+    <div class="formula">
+      ${k.within48.toLocaleString()} resolved within 48 hrs / ${k.total.toLocaleString()} total public SSOs = ${pctTxt}
+    </div>
+  </div>`;
+}
+
+function renderLeak(k) {
+  const color = k.pct >= 0.90 ? '#0f6d39' : '#d93025';
+  const statusText = k.pct >= 0.90 ? 'meeting or above target' : 'below target';
+  const pctTxt = fmtPct(k.pct);
+  const varianceTxt = fmtPct(k.pct - 0.90, 1);
+  const barW = Math.min(100, k.pct * 100).toFixed(1);
+  return `<div class="card">
+    <div class="title">
+      <div>Average Water Leak Repair Completed in 7 Days</div>
+      <div class="status-dot" style="background:${color}"></div>
+    </div>
+    <div class="value">${pctTxt}</div>
+    <div class="bar-bg"><div class="bar-fill" style="background:${color};width:${barW}%"></div></div>
+    <div class="subtitle">Goal: 90% of leak repairs completed within 7 days</div>
+    <div class="formula">
+      ${k.within7.toLocaleString()} of ${k.completed.toLocaleString()} completed leak WOs closed within 7 days (${pctTxt}).<br>
+      Performance is <strong style="color:${color}">${statusText}</strong>
+      by <strong>${varianceTxt}</strong> versus the target.
+    </div>
+  </div>`;
+}
+
+function renderSewer(k) {
+  if (!k) return `<div class="card"><p style="color:#666;font-family:Segoe UI,Arial,sans-serif">No sewer assessment data for selected range.</p></div>`;
+  const color = k.cumulative >= k.target ? '#0f6d39' : '#d93025';
+  const statusText = k.cumulative >= k.target ? 'ahead of schedule' : 'behind schedule';
+  const pctTxt = fmtPct(k.percent, 1);
+  const barW = Math.min(105, k.percent * 100).toFixed(1);
+  const targetPct = fmtPct(k.target / k.annualGoal, 1);
+  const variance = (k.cumulative - k.target).toFixed(1);
+  const monthLabel = new Date(k.latestMonth).toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return `<div class="card">
+    <div class="title">
+      <div>Sewer Main Assessment</div>
+      <div style="display:flex;align-items:center;gap:6px">
+        <span class="target">YTD target: ${fmtNum(k.target)} mi (${targetPct})</span>
+        <span class="status-dot" style="background:${color}"></span>
+      </div>
+    </div>
+    <div class="value">${pctTxt}</div>
+    <div class="bar-bg"><div class="bar-fill" style="background:${color};width:${barW}%"></div></div>
+    <div class="subtitle">FY goal: ${fmtNum(k.annualGoal)} miles inspected · Latest month (${monthLabel}): ${fmtNum(k.monthly)} mi</div>
+    <div class="formula">
+      ${fmtNum(k.cumulative)} miles inspected / ${fmtNum(k.annualGoal)} mile goal = ${pctTxt}<br>
+      Currently <strong>${statusText}</strong> by ${variance} miles vs YTD target (${fmtNum(k.target)} mi).
+    </div>
+  </div>`;
+}
+
+// ── Chart ─────────────────────────────────────────────────────────────────────
+
+// Custom data-label plugin (no external dependency)
+const dataLabelPlugin = {
+  id: 'kpiDataLabels',
+  afterDatasetDraw(chart, args) {
+    const { ctx } = chart;
+    const ds = chart.data.datasets[args.index];
+    const meta = chart.getDatasetMeta(args.index);
+    ctx.save();
+    ctx.font = '10px Arial';
+    ctx.fillStyle = ds.borderColor;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    meta.data.forEach((pt, i) => {
+      const v = ds.data[i];
+      if (v === null || v === undefined) return;
+      ctx.fillText(fmtPct(v, 1), pt.x, pt.y + 5);
+    });
+    ctx.restore();
+  }
+};
+
+let perfChart = null;
+
+function buildChart(spine, sewerVals, ssoVals, leakVals) {
+  const labels = spine.map(m => m.toLocaleDateString('en-US', { month: 'short', year: 'numeric' }));
+  const cfg = {
+    type: 'line',
+    plugins: [dataLabelPlugin],
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Sewer Assessment',
+          data: sewerVals,
+          borderColor: '#118DFF', backgroundColor: 'transparent',
+          borderDash: [8, 4], pointBackgroundColor: '#118DFF',
+          pointRadius: 4, tension: 0, spanGaps: false,
+        },
+        {
+          label: 'SSO Resolution Time',
+          data: ssoVals,
+          borderColor: '#3EC7C2', backgroundColor: 'transparent',
+          borderDash: [3, 3], pointBackgroundColor: '#3EC7C2',
+          pointRadius: 4, tension: 0, spanGaps: false,
+        },
+        {
+          label: 'Leak Repair WO',
+          data: leakVals,
+          borderColor: '#E66C37', backgroundColor: 'transparent',
+          pointBackgroundColor: '#E66C37',
+          pointRadius: 4, tension: 0, spanGaps: false,
+        },
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        y: {
+          min: 0, max: 1.05,
+          title: { display: true, text: 'Performance Percentage', color: '#b4c0d0', font: { size: 11 } },
+          ticks: { callback: v => fmtPct(v), color: '#b4c0d0', font: { size: 10 } },
+          grid: { color: 'rgba(139,175,214,0.12)' },
+        },
+        x: {
+          ticks: { color: '#b4c0d0', font: { size: 10 } },
+          grid: { color: 'rgba(139,175,214,0.12)' },
+        }
+      },
+      plugins: {
+        legend: { labels: { color: '#f1f5fb', font: { size: 11 }, boxWidth: 28 } },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y !== null ? fmtPct(ctx.parsed.y, 1) : 'N/A'}`
+          }
+        }
+      }
+    }
+  };
+
+  if (perfChart) { perfChart.destroy(); }
+  const canvas = document.getElementById('perf-chart');
+  perfChart = new Chart(canvas, cfg);
+}
+
+// ── Last Update ───────────────────────────────────────────────────────────────
+
+function computeLastUpdate() {
+  // Min(initdttm) across all leak rows
+  let minDt = null;
+  DATA_LEAK.rows.forEach(r => {
+    if (!r.initdttm) return;
+    const dt = new Date(r.initdttm);
+    if (!minDt || dt < minDt) minDt = dt;
+  });
+  if (!minDt) return '-';
+  return minDt.toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' });
+}
+
+// ── Pre-build lookup maps for chart ──────────────────────────────────────────
+
+const sewerByMonth = {};
+DATA_SEWER.rows.forEach(r => {
+  if (r.Month) sewerByMonth[r.Month.substring(0, 7)] = r.Percent;
+});
+
+const ssoByMonth = {};
+DATA_SSO.byMonth.forEach(r => {
+  if (r.month) ssoByMonth[r.month.substring(0, 7)] = r.Pct_Within48;
+});
+
+const leakByMonth = {};
+DATA_LEAK.byMonth.forEach(r => {
+  if (r.month) leakByMonth[r.month.substring(0, 7)] = r.Pct_Within7;
+});
+
+// ── Render all ────────────────────────────────────────────────────────────────
+
+function renderAll() {
+  const startDt = parseLocalDate(document.getElementById('dt-start').value);
+  const endDt   = parseLocalDate(document.getElementById('dt-end').value);
+
+  // KPI cards
+  const ssoKpi   = computeSSO(startDt, endDt);
+  const leakKpi  = computeLeak(startDt, endDt);
+  const sewerKpi = computeSewer(startDt, endDt);
+
+  document.getElementById('sso-card').innerHTML   = renderSSO(ssoKpi);
+  document.getElementById('leak-card').innerHTML  = renderLeak(leakKpi);
+  document.getElementById('sewer-card').innerHTML = renderSewer(sewerKpi);
+
+  // Line chart
+  const spine = buildMonthSpine(startDt, endDt);
+  const sewerVals = spine.map(m => sewerByMonth[monthKey(m)] ?? null);
+  const ssoVals   = spine.map(m => ssoByMonth[monthKey(m)]   ?? null);
+  const leakVals  = spine.map(m => leakByMonth[monthKey(m)]  ?? null);
+  buildChart(spine, sewerVals, ssoVals, leakVals);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+
+document.getElementById('last-update').textContent = computeLastUpdate();
+document.getElementById('dt-start').addEventListener('change', renderAll);
+document.getElementById('dt-end').addEventListener('change', renderAll);
+renderAll();
+</script>
+</body>
+</html>

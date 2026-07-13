@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Capacity Reservation Tracking - Significant WCRs</title>
+<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="assets/leaflet/leaflet.min.css">
+<style>
+html,body{height:100%;overflow:hidden;margin:0;min-width:0}
+.page-body{height:calc(100vh - 142px);overflow:hidden;display:flex;gap:8px;padding:8px}
+
+/* 2-column layout */
+.left-col{flex:54;min-width:0;display:flex;flex-direction:column}
+.right-col{flex:46;min-width:0;display:flex;flex-direction:column;gap:8px}
+
+.panel{
+  background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+  border:1px solid var(--border);border-radius:10px;
+  min-height:0;overflow:hidden;display:flex;flex-direction:column;padding:8px
+}
+.panel-title{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;
+  letter-spacing:.06em;margin-bottom:6px;flex-shrink:0}
+
+/* table */
+.tbl-wrap{flex:1;overflow-y:auto;min-height:0}
+table{width:100%;border-collapse:collapse;font-size:11px}
+thead th{position:sticky;top:0;background:#1b2a3d;color:var(--muted);font-weight:600;
+  padding:5px 6px;text-align:left;white-space:nowrap;border-bottom:1px solid var(--border);
+  cursor:pointer;user-select:none}
+thead th:hover{color:var(--text)}
+thead th.r{text-align:right}
+tbody tr{border-bottom:1px solid rgba(139,175,214,.08);cursor:pointer}
+tbody tr:hover{background:rgba(93,168,255,.07)}
+tbody tr.row-sel{background:rgba(62,199,194,.15);border-left:3px solid #3ec7c2}
+tbody tr.row-unmapped td{color:rgba(233,240,247,.72)}
+tbody td{padding:4px 6px;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:220px}
+tbody td.r{text-align:right}
+.map-chip{
+  display:inline-flex;align-items:center;margin-right:6px;padding:1px 5px;border-radius:5px;
+  border:1px solid rgba(230,165,46,.35);background:rgba(230,165,46,.1);
+  color:#e6c06c;font-size:8px;font-weight:800;text-transform:uppercase;letter-spacing:.04em;
+  vertical-align:1px
+}
+
+/* controls row (date slicer + count card) */
+.controls-row{flex:0 0 auto;display:flex;gap:8px;align-items:stretch}
+.date-panel{flex:1.2;min-width:0}
+.sa-panel{flex:.8;min-width:0}
+.count-panel{flex:0 0 148px;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:4px}
+.date-inputs{display:flex;align-items:center;gap:6px;flex-wrap:wrap;padding-top:2px}
+.date-lbl{font-size:10px;color:var(--muted)}
+input[type=date]{background:#102032;border:1px solid rgba(108,143,186,.36);color:var(--text);
+  border-radius:5px;padding:3px 7px;font-size:10px;outline:none;font-family:inherit}
+input[type=date]::-webkit-calendar-picker-indicator{filter:invert(.55)}
+.sa-dd-wrap{position:relative}
+.sa-dd-btn{width:100%;height:27px;background:#102032;border:1px solid rgba(108,143,186,.36);
+  border-radius:5px;color:var(--text);font:inherit;font-size:10px;padding:0 8px;
+  text-align:left;cursor:pointer;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.sa-dd-btn span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-dd-list{display:none;position:fixed;z-index:9999;background:#1b2a3d;border:1px solid var(--border);
+  border-radius:8px;overflow:hidden;flex-direction:column;box-shadow:0 14px 34px rgba(0,0,0,.35)}
+.sa-dd-list.open{display:flex}
+.sa-dd-items{overflow-y:auto;max-height:190px}
+.sa-dd-item{display:flex;align-items:center;gap:6px;padding:5px 8px;font-size:10px;cursor:pointer}
+.sa-dd-item:hover{background:rgba(93,168,255,.1)}
+.sa-dd-item input{accent-color:#5da8ff;pointer-events:none;flex-shrink:0}
+.sa-dd-item span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sa-dd-all{border-bottom:1px solid rgba(139,175,214,.15);font-weight:700}
+.count-val{font-size:36px;font-weight:800;color:#f1f5fb;line-height:1;
+  font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+.count-lbl{font-size:9px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;text-align:center}
+
+/* map */
+.map-panel{flex:1;min-height:0;overflow:hidden;padding:0;position:relative}
+#map{width:100%;height:100%;border-radius:10px}
+.map-note{
+  display:none;position:absolute;left:12px;bottom:12px;z-index:500;padding:7px 9px;
+  border:1px solid rgba(108,143,186,.34);border-radius:7px;
+  background:rgba(13,30,46,.88);color:#d7e3f2;font-size:10px;font-weight:700;
+  box-shadow:0 10px 24px rgba(0,0,0,.24);pointer-events:none
+}
+.map-note.on{display:block}
+
+/* shared reset buttons (duplicated from home.html inline styles) */
+.reset-btn{display:inline-flex;align-items:center;justify-content:center;width:auto;height:28px;margin-top:0;
+  padding:0 13px;border-radius:7px;border:1px solid rgba(108,143,186,.3);
+  background:rgba(94,127,168,.15);color:var(--muted);font-size:10px;cursor:pointer;line-height:1}
+.reset-btn:hover{background:rgba(94,127,168,.28);color:var(--text)}
+.refresh-badge{display:inline-flex;align-items:center;height:28px;padding:0 10px;gap:6px;
+  border-radius:6px;border:1px solid rgba(108,143,186,.25);background:rgba(94,127,168,.1);
+  color:var(--muted);font-size:10px;white-space:nowrap;cursor:default;flex-shrink:0}
+.cf-badge{display:none;height:28px;padding:0 11px;border-radius:7px;
+  border:1px solid rgba(62,199,194,.4);background:rgba(62,199,194,.12);
+  color:#3ec7c2;font-size:10px;font-weight:700;cursor:pointer;align-items:center;gap:5px;white-space:nowrap}
+.cf-badge.on{display:inline-flex}.cf-badge:hover{background:rgba(62,199,194,.25)}
+.topbar-status{display:flex;align-items:center;gap:8px;flex-shrink:0;align-self:center}
+</style>
+</head>
+<body>
+
+<!-- ── Topbar ──────────────────────────────────────────────────────────── -->
+<div class="topbar" style="padding:10px 18px 9px;gap:14px">
+  <div style="display:flex;align-items:center;gap:10px;flex-shrink:0">
+    <div>
+      <div style="font-size:16px;font-weight:700;line-height:1.2">Wastewater Capacity Reservation Tracking</div>
+      <div style="font-size:9.5px;color:var(--muted)">Synthetic sample data</div>
+    </div>
+  </div>
+  <div class="topbar-status">
+    <button class="cf-badge" id="cf-badge" onclick="clearClickFilter()">× Clear Selection</button>
+    <span class="refresh-badge">⟳ <span id="refresh-lbl">-</span></span>
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+  </div>
+</div>
+
+<!-- ── Subtabs ─────────────────────────────────────────────────────────── -->
+<div class="subtabs" style="padding:0 18px 9px">
+  <button class="subtab" onclick="location.href='home.html'">HOME</button>
+  <button class="subtab active">Significant WCRs</button>
+</div>
+
+<!-- ── Page body ───────────────────────────────────────────────────────── -->
+<div class="page-body">
+
+  <!-- LEFT: Full-height sortable table -->
+  <div class="left-col panel">
+    <div class="panel-title">Significant WCRs <span id="row-count-lbl" style="font-weight:400;opacity:.6;text-transform:none"></span></div>
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th onclick="sortBy('PROJECTNUM')">Record No<span id="sort-PROJECTNUM"></span></th>
+            <th onclick="sortBy('ADDR_MOD')">Address<span id="sort-ADDR_MOD"></span></th>
+            <th onclick="sortBy('RESPOND_DT')">Date<span id="sort-RESPOND_DT"></span></th>
+            <th class="r" onclick="sortBy('WWSERVICEU')">WWESU<span id="sort-WWSERVICEU"> ↓</span></th>
+          </tr>
+        </thead>
+        <tbody id="tbl-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- RIGHT: Date slicer + count card, then map -->
+  <div class="right-col">
+
+    <!-- Controls row -->
+    <div class="controls-row">
+      <div class="date-panel panel">
+        <div class="panel-title">Date Range (RESPOND_DT)</div>
+        <div class="date-inputs">
+          <span class="date-lbl">From</span>
+          <input type="date" id="date-start" onchange="applyDateFilter()">
+          <span class="date-lbl">To</span>
+          <input type="date" id="date-end" onchange="applyDateFilter()">
+        </div>
+      </div>
+      <div class="sa-panel panel">
+        <div class="panel-title">SA</div>
+        <div class="sa-dd-wrap">
+          <button class="sa-dd-btn" id="sa-dd-btn" onclick="toggleSADD()">
+            <span id="sa-dd-label">All</span><span>▾</span>
+          </button>
+          <div class="sa-dd-list" id="sa-dd-list"></div>
+        </div>
+      </div>
+      <div class="count-panel panel">
+        <div class="count-val" id="count-val">-</div>
+        <div class="count-lbl">Count of PROJECTNUM</div>
+      </div>
+    </div>
+
+    <!-- Map -->
+    <div class="map-panel">
+      <div id="map"></div>
+      <div class="map-note" id="map-note"></div>
+    </div>
+
+  </div>
+</div>
+
+<script src="assets/leaflet/leaflet.min.js"></script>
+<script src="data.js"></script>
+<script>
+// ── Constants ──────────────────────────────────────────────────────────
+const SLICER_DEFAULT_START = '2024-01-01';
+const MARKER_COLOR = '#4b9fd5';
+const DEFAULT_MAP_CENTER = [29.76, -95.37];
+const DEFAULT_MAP_ZOOM = 10;
+const SINGLE_SELECT_ZOOM = 12;
+const MULTI_SELECT_MAX_ZOOM = 11;
+
+// Page-level filter: WWSERVICEU > 15 (strictly greater)
+const PAGE_ROWS = window.DATA_ROWS.filter(r => (r.WWSERVICEU || 0) > 15);
+
+const SA_VALUES = [...new Set(
+  PAGE_ROWS
+    .map(r => (r.WWTPSA_Final || '').trim())
+    .filter(Boolean)
+)].sort();
+
+// Max RESPOND_DT across page rows (for default end of slicer)
+const MAX_DATE = PAGE_ROWS
+  .map(r => r.RESPOND_DT).filter(Boolean)
+  .reduce((a, b) => a > b ? a : b, '');
+
+// ── Display address helper ─────────────────────────────────────────────
+function addrMod(r) {
+  const a = (r.ADDRESS || '').trim();
+  return a || '-';
+}
+
+function hasMapCoords(r) {
+  const lat = parseFloat(r.LATITUDE), lon = parseFloat(r.LONGITUDE);
+  return !!(lat && lon && lat >= 25 && lat <= 35 && lon >= -100 && lon <= -90);
+}
+
+// ── Date slicer state ──────────────────────────────────────────────────
+let dateStart = SLICER_DEFAULT_START;   // 'YYYY-MM-DD' string or ''
+let dateEnd   = MAX_DATE;
+let activeSA  = null; // null = all; Set = selected values
+let saOpen    = false;
+let saItemEls = [];
+
+// ── Sort state ─────────────────────────────────────────────────────────
+let sortCol = 'WWSERVICEU';
+let sortDir = -1; // -1 = desc, 1 = asc
+
+// ── Click-filter state (multi-select by PROJECTNUM) ────────────────────
+let CF = { type: null, projectnums: new Set() };
+
+function cfActive() { return CF.type === 'row' && CF.projectnums.size > 0; }
+
+function toggleClick(projectnum, multi = false) {
+  if (!multi) {
+    // Regular click: replace selection (or deselect if already the only one)
+    if (CF.projectnums.size === 1 && CF.projectnums.has(projectnum)) {
+      CF = { type: null, projectnums: new Set() };
+    } else {
+      CF = { type: 'row', projectnums: new Set([projectnum]) };
+    }
+  } else {
+    // Ctrl/Cmd+click: add or remove from multi-select
+    CF.type = 'row';
+    if (CF.projectnums.has(projectnum)) CF.projectnums.delete(projectnum);
+    else CF.projectnums.add(projectnum);
+    if (CF.projectnums.size === 0) CF.type = null;
+  }
+  renderAll();
+}
+
+function clearClickFilter() {
+  CF = { type: null, projectnums: new Set() };
+  renderAll();
+}
+
+function updateCFBadge() {
+  const b = document.getElementById('cf-badge'); if (!b) return;
+  b.classList.toggle('on', cfActive());
+  if (cfActive()) b.textContent = `× ${CF.projectnums.size} row${CF.projectnums.size > 1 ? 's' : ''} selected`;
+}
+
+// ── Filter rows ────────────────────────────────────────────────────────
+function getFilteredRows() {
+  return PAGE_ROWS.filter(r => {
+    const dt = r.RESPOND_DT || '';
+    if (dateStart && dt < dateStart) return false;
+    if (dateEnd   && dt > dateEnd)   return false;
+    if (activeSA !== null && !activeSA.has((r.WWTPSA_Final || '').trim())) return false;
+    return true;
+  });
+}
+
+// ── Sort ───────────────────────────────────────────────────────────────
+function sortBy(col) {
+  if (sortCol === col) sortDir *= -1;
+  else { sortCol = col; sortDir = col === 'WWSERVICEU' ? -1 : 1; }
+  updateSortIcons();
+  updateTable(getFilteredRows());
+}
+
+function updateSortIcons() {
+  ['PROJECTNUM','ADDR_MOD','RESPOND_DT','WWSERVICEU'].forEach(c => {
+    const el = document.getElementById('sort-' + c);
+    if (!el) return;
+    el.textContent = sortCol === c ? (sortDir === -1 ? ' ↓' : ' ↑') : '';
+  });
+}
+
+// ── Table ──────────────────────────────────────────────────────────────
+function updateTable(rows) {
+  const sorted = [...rows].sort((a, b) => {
+    let av, bv;
+    if (sortCol === 'ADDR_MOD') { av = addrMod(a); bv = addrMod(b); }
+    else { av = a[sortCol] ?? ''; bv = b[sortCol] ?? ''; }
+    if (av < bv) return -sortDir;
+    if (av > bv) return sortDir;
+    return 0;
+  });
+
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = '';
+  sorted.forEach(r => {
+    const tr = document.createElement('tr');
+    if (cfActive() && CF.projectnums.has(r.PROJECTNUM)) tr.className = 'row-sel';
+    const mapped = hasMapCoords(r);
+    if (!mapped) tr.classList.add('row-unmapped');
+    const addr = addrMod(r);
+    const chip = mapped ? '' : '<span class="map-chip">No map</span>';
+    tr.innerHTML =
+      `<td>${r.PROJECTNUM || ''}</td>` +
+      `<td title="${addr}${mapped ? '' : ' - no source coordinates'}">${chip}${addr}</td>` +
+      `<td>${r.RESPOND_DT || ''}</td>` +
+      `<td class="r">${(r.WWSERVICEU || 0).toLocaleString()}</td>`;
+    tr.addEventListener('click', e => toggleClick(r.PROJECTNUM, e.ctrlKey || e.metaKey));
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('row-count-lbl').textContent = `(${rows.length.toLocaleString()} rows)`;
+}
+
+// ── Count card ─────────────────────────────────────────────────────────
+function updateCount(rows) {
+  document.getElementById('count-val').textContent = rows.length.toLocaleString();
+}
+
+// ── Map ────────────────────────────────────────────────────────────────
+let mapInst = null, layerGroup = null;
+
+function initMap() {
+  try {
+    mapInst = L.map('map', { zoomControl: true }).setView(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors', maxZoom: 18
+    }).addTo(mapInst);
+    layerGroup = L.layerGroup().addTo(mapInst);
+    mapInst.on('click', () => { if (cfActive()) clearClickFilter(); });
+  } catch(e) {
+    document.getElementById('map').innerHTML =
+      `<div style="padding:16px;color:#b4c0d0">Map unavailable: ${e.message}</div>`;
+  }
+}
+
+function updateMap(rows) {
+  if (!layerGroup) return;
+  layerGroup.clearLayers();
+  const selBounds = [];
+  let visibleCount = 0, selectedTotal = 0, selectedMapped = 0;
+
+  for (const r of rows) {
+    const isSel = cfActive() && CF.projectnums.has(r.PROJECTNUM);
+    if (isSel) selectedTotal++;
+
+    if (!hasMapCoords(r)) continue;
+    const lat = parseFloat(r.LATITUDE), lon = parseFloat(r.LONGITUDE);
+    visibleCount++;
+    if (isSel) {
+      selectedMapped++;
+      selBounds.push([lat, lon]);
+    }
+
+    const circle = L.circleMarker([lat, lon], {
+      radius:      isSel ? 8 : 5,
+      fillColor:   isSel ? '#3ec7c2' : MARKER_COLOR,
+      color:       isSel ? '#fff' : '#0d1e2e',
+      weight:      isSel ? 2 : 0.5,
+      fillOpacity: isSel ? 1 : 0.75
+    });
+
+    circle.bindPopup(
+      `<b>${addrMod(r)}</b><br>` +
+      `Record: ${r.PROJECTNUM || '-'}<br>` +
+      `Date: ${r.RESPOND_DT || '-'}<br>` +
+      `WWESU: ${(r.WWSERVICEU || 0).toLocaleString()}<br>` +
+      `Category: ${r.WCR_Cat || '-'} · PAID: ${r.PAID || '-'}`
+    );
+
+    circle.on('click', e => {
+      L.DomEvent.stopPropagation(e);
+      toggleClick(r.PROJECTNUM, e.originalEvent.ctrlKey || e.originalEvent.metaKey);
+    });
+
+    layerGroup.addLayer(circle);
+    if (isSel) circle.bringToFront();
+    if (visibleCount >= 5000) break;
+  }
+
+  updateMapNote(rows.length, visibleCount, selectedTotal, selectedMapped);
+
+  // Adjust map view to fit selection without over-zooming or snapping to citywide on unmapped rows.
+  if (selBounds.length === 1) {
+    mapInst.flyTo(selBounds[0], SINGLE_SELECT_ZOOM, { animate: true, duration: 0.65 });
+  } else if (selBounds.length > 1) {
+    mapInst.flyToBounds(selBounds, { padding: [48, 48], maxZoom: MULTI_SELECT_MAX_ZOOM, animate: true, duration: 0.65 });
+  } else if (!cfActive()) {
+    mapInst.flyTo(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: true, duration: 0.45 });
+  }
+}
+
+function updateMapNote(totalRows, visibleRows, selectedTotal, selectedMapped) {
+  const note = document.getElementById('map-note');
+  if (!note) return;
+  const unmappedTotal = totalRows - visibleRows;
+  const selectedUnmapped = selectedTotal - selectedMapped;
+  if (selectedUnmapped > 0) {
+    note.textContent = `${selectedUnmapped} selected row${selectedUnmapped > 1 ? 's are' : ' is'} not mapped`;
+    note.classList.add('on');
+  } else if (!cfActive() && unmappedTotal > 0) {
+    note.textContent = `${visibleRows.toLocaleString()} of ${totalRows.toLocaleString()} rows mapped`;
+    note.classList.add('on');
+  } else {
+    note.classList.remove('on');
+  }
+}
+
+// ── Date slicer ────────────────────────────────────────────────────────
+function applyDateFilter() {
+  dateStart = document.getElementById('date-start').value;
+  dateEnd   = document.getElementById('date-end').value;
+  renderAll();
+}
+
+function buildSAFilter() {
+  const list = document.getElementById('sa-dd-list');
+  list.innerHTML = '';
+
+  const items = document.createElement('div');
+  items.className = 'sa-dd-items';
+  list.appendChild(items);
+
+  const allItem = document.createElement('div');
+  allItem.className = 'sa-dd-item sa-dd-all';
+  allItem.innerHTML = `<input type="checkbox" id="sa-all-chk" ${saIsAll() ? 'checked' : ''}><span>All</span>`;
+  allItem.addEventListener('click', e => {
+    e.stopPropagation();
+    if (saIsAll()) activeSA = new Set();
+    else activeSA = null;
+    updateSAFilterUI();
+    clearClickFilter();
+  });
+  items.appendChild(allItem);
+
+  saItemEls = [];
+  SA_VALUES.forEach(v => {
+    const item = document.createElement('div');
+    item.className = 'sa-dd-item';
+    item.dataset.val = v;
+    item.innerHTML = `<input type="checkbox" ${saIsSelected(v) ? 'checked' : ''}><span>${escapeHtml(v)}</span>`;
+    item.addEventListener('click', e => {
+      e.stopPropagation();
+      if (saIsAll()) activeSA = new Set(SA_VALUES);
+      if (activeSA.has(v)) activeSA.delete(v);
+      else activeSA.add(v);
+      if (activeSA.size === SA_VALUES.length) activeSA = null;
+      updateSAFilterUI();
+      clearClickFilter();
+    });
+    items.appendChild(item);
+    saItemEls.push(item);
+  });
+  updateSAFilterUI();
+}
+
+function saIsAll() { return activeSA === null; }
+function saIsSelected(v) { return saIsAll() || activeSA.has(v); }
+
+function toggleSADD() {
+  saOpen = !saOpen;
+  const list = document.getElementById('sa-dd-list');
+  if (saOpen) {
+    const r = document.getElementById('sa-dd-btn').getBoundingClientRect();
+    list.style.top = (r.bottom + 2) + 'px';
+    list.style.left = r.left + 'px';
+    list.style.width = r.width + 'px';
+  }
+  list.classList.toggle('open', saOpen);
+}
+
+function updateSAFilterUI() {
+  const label = document.getElementById('sa-dd-label');
+  if (saIsAll()) label.textContent = 'All';
+  else if (activeSA.size === 0) label.textContent = 'None';
+  else if (activeSA.size === 1) label.textContent = [...activeSA][0];
+  else label.textContent = `${activeSA.size} selected`;
+
+  const allChk = document.getElementById('sa-all-chk');
+  if (allChk) allChk.checked = saIsAll();
+  saItemEls.forEach(item => {
+    item.querySelector('input').checked = saIsSelected(item.dataset.val);
+  });
+}
+
+function escapeHtml(value) {
+  return String(value).replace(/[&<>"']/g, ch => ({
+    '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'
+  }[ch]));
+}
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('.sa-dd-wrap')) {
+    saOpen = false;
+    document.getElementById('sa-dd-list').classList.remove('open');
+  }
+});
+
+// ── Reset ──────────────────────────────────────────────────────────────
+function resetFilters() {
+  CF = { type: null, projectnums: new Set() };
+  dateStart = SLICER_DEFAULT_START;
+  dateEnd   = MAX_DATE;
+  activeSA  = null;
+  document.getElementById('date-start').value = SLICER_DEFAULT_START;
+  document.getElementById('date-end').value   = MAX_DATE;
+  updateSAFilterUI();
+  sortCol = 'WWSERVICEU'; sortDir = -1;
+  updateSortIcons();
+  if (mapInst) mapInst.flyTo(DEFAULT_MAP_CENTER, DEFAULT_MAP_ZOOM, { animate: true, duration: 0.45 });
+  renderAll();
+}
+
+// ── renderAll ──────────────────────────────────────────────────────────
+function renderAll() {
+  const rows = getFilteredRows();
+  updateCount(rows);
+  updateTable(rows);
+  updateMap(rows);
+  updateCFBadge();
+}
+
+// ── Boot ───────────────────────────────────────────────────────────────
+function fmtDate(s){const[m,d,y]=(s||'').split('/');const mn=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];return(s&&m&&d&&y)?`${mn[+m-1]} ${+d}, ${y}`:'-';}
+document.getElementById('refresh-lbl').textContent = fmtDate(window.DATA_REFRESH);
+document.getElementById('date-start').value = SLICER_DEFAULT_START;
+document.getElementById('date-end').value   = MAX_DATE;
+buildSAFilter();
+initMap();
+renderAll();
+</script>
+</body>
+</html>

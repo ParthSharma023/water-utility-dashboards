@@ -1,0 +1,719 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SSO Monthly Report | SSO Reporting Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="assets/leaflet/leaflet.min.css" />
+  <script src="assets/chartjs/chart.min.js"></script>
+  <script src="assets/leaflet/leaflet.min.js"></script>
+  <script src="data.js"></script>
+  <style>
+    html, body { height:100%; overflow:hidden; }
+    .page-body {
+      height:calc(100vh - 142px);
+      display:flex; flex-direction:column;
+      padding:0 18px 8px; overflow:hidden;
+    }
+
+    /* ── Filter bar ─────────────────────────────────────────────────────────── */
+    .filter-bar {
+      display:flex; align-items:center; gap:7px;
+      padding:7px 0; border-bottom:1px solid rgba(122,156,199,.12);
+      margin-bottom:5px; flex-shrink:0; flex-wrap:nowrap;
+    }
+    .f-label { font-size:11px; color:var(--muted); font-weight:600; white-space:nowrap; }
+    .f-select, .f-date {
+      height:28px; padding:0 7px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text); font:inherit; font-size:12px;
+    }
+    .f-select { min-width:100px; }
+    .f-date   { width:118px; }
+    .f-sep    { color:var(--muted); font-size:12px; }
+    .f-divider { width:1px; height:20px; background:rgba(120,150,190,.18); flex-shrink:0; }
+    .f-text {
+      height:28px; padding:0 8px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text); font:inherit; font-size:12px; width:100px;
+    }
+    .f-text::placeholder { color:var(--muted); }
+    .reset-btn {
+      height:28px; padding:0 10px; width:auto; margin:0;
+      border-radius:5px; border:1px solid rgba(108,143,186,.28);
+      background:rgba(40,60,100,.35); color:var(--muted);
+      font:inherit; font-size:11px; cursor:pointer;
+      flex-shrink:0; white-space:nowrap;
+      display:inline-flex; align-items:center;
+    }
+    .reset-btn:hover { background:rgba(40,77,124,.5); color:var(--text); }
+    .row-count { font-size:11px; color:var(--muted); white-space:nowrap; }
+    .row-count strong { color:var(--text); }
+    .sso-card {
+      margin-left:auto;
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:6px;
+      padding:3px 14px 5px; text-align:center; min-width:80px; flex-shrink:0;
+    }
+    .sso-card-lbl { font-size:9px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+    .sso-card-val { font-size:20px; font-weight:700; color:var(--text); line-height:1.2; }
+
+    /* ── Multi-select dropdown ──────────────────────────────────────────────── */
+    .dd-wrap { position:relative; flex-shrink:0; }
+    .dd-btn {
+      height:28px; padding:0 10px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text);
+      font:inherit; font-size:12px; cursor:pointer;
+      white-space:nowrap; display:inline-flex; align-items:center; gap:6px;
+    }
+    .dd-btn:hover { border-color:rgba(108,143,186,.6); }
+    .dd-btn .arr { font-size:9px; color:var(--muted); }
+    .dd-panel {
+      display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:999;
+      background:#0f1e2e; border:1px solid rgba(108,143,186,.3);
+      border-radius:7px; box-shadow:0 8px 28px rgba(0,0,0,.55);
+      min-width:190px; max-height:240px; overflow-y:auto; padding:4px 0;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+    }
+    .dd-panel.open { display:block; }
+    .dd-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:12px; color:var(--text); user-select:none; }
+    .dd-item:hover { background:rgba(40,77,124,.4); }
+    .dd-item input[type=checkbox] { pointer-events:none; accent-color:#118DFF; flex-shrink:0; }
+    .dd-sep { height:1px; background:rgba(120,150,190,.15); margin:3px 0; }
+
+    /* ── Metrics strip ──────────────────────────────────────────────────────── */
+    .metrics-strip { display:flex; gap:10px; flex-shrink:0; margin-bottom:5px; }
+    .metric-card {
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:6px;
+      padding:4px 20px 5px; text-align:center; min-width:140px;
+    }
+    .metric-lbl { font-size:10px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+    .metric-val { font-size:22px; font-weight:700; color:var(--text); line-height:1.2; }
+    .metric-card.red    .metric-val { color:#ff7070; }
+    .metric-card.yellow .metric-val { color:#fffd00; }
+
+    /* ── Layout ─────────────────────────────────────────────────────────────── */
+    .content-area { flex:1; min-height:0; display:flex; flex-direction:column; gap:7px; }
+    .trend-panel  { flex:0 0 196px; min-height:0; }
+    .bottom-grid  {
+      flex:1; min-height:0;
+      display:grid;
+      grid-template-columns: minmax(0,31fr) minmax(0,40fr) minmax(0,29fr);
+      gap:8px;
+    }
+
+    /* ── Panel ──────────────────────────────────────────────────────────────── */
+    .panel {
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:7px;
+      box-shadow:0 6px 24px rgba(31,39,92,.45);
+      display:flex; flex-direction:column; min-height:0;
+    }
+    .panel-title {
+      background:#001E60; color:#fff; font-size:12px; font-weight:600;
+      text-align:center; padding:4px 10px; border-radius:7px 7px 0 0; flex-shrink:0;
+    }
+    .panel-body { flex:1; min-height:0; overflow:hidden; position:relative; }
+
+    /* ── Scrollable chart ───────────────────────────────────────────────────── */
+    .cs-outer {
+      width:100%; height:100%; overflow-x:auto; overflow-y:hidden;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+    }
+    .cs-outer::-webkit-scrollbar { height:4px; }
+    .cs-outer::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+    .cs-inner { height:100%; position:relative; display:block; }
+
+    /* ── Scrollable table ───────────────────────────────────────────────────── */
+    .tbl-outer {
+      width:100%; height:100%; overflow:auto;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+    }
+    .tbl-outer::-webkit-scrollbar { width:4px; height:4px; }
+    .tbl-outer::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+    .data-table { width:100%; border-collapse:collapse; font-size:11px; color:var(--text); }
+    .data-table thead th {
+      position:sticky; top:0; z-index:1;
+      background:#0a1928; color:var(--muted); font-weight:600;
+      padding:5px 8px; text-align:left; border-bottom:1px solid rgba(108,143,186,.2);
+      white-space:nowrap;
+    }
+    .data-table tbody tr { border-bottom:1px solid rgba(108,143,186,.07); }
+    .data-table tbody tr:hover { background:rgba(40,77,124,.22); }
+    .data-table tbody td { padding:4px 8px; vertical-align:middle; }
+    .tbl-note { font-size:10px; color:var(--muted); padding:3px 8px; }
+    .cat-dot {
+      display:inline-block; width:7px; height:7px; border-radius:50%;
+      margin-right:5px; vertical-align:middle; flex-shrink:0;
+    }
+
+    /* ── Leaflet map override ───────────────────────────────────────────────── */
+    #map-container { width:100%; height:100%; border-radius:0 0 7px 7px; }
+    .leaflet-container { background:#0a1624; }
+    .map-note {
+      position:absolute; bottom:6px; left:50%; transform:translateX(-50%);
+      z-index:500; background:rgba(10,22,36,.82); border:1px solid rgba(108,143,186,.3);
+      border-radius:4px; padding:2px 8px; font-size:10px; color:var(--muted);
+      pointer-events:none; white-space:nowrap;
+    }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <a href="index.html"
+       style="width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,#118DFF,#12239E);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;letter-spacing:.03em;text-decoration:none;flex-shrink:0;">SSO</a>
+    <div>
+      <h1 style="font-size:22px;margin:0;font-weight:700;">SSO Report</h1>
+      <p style="margin:3px 0 0;font-size:13px;color:var(--muted);">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html"      style="text-decoration:none;font-size:14px;">SSO Analysis</a>
+  <a class="subtab-ghost" href="rsso-analysis.html"      style="text-decoration:none;font-size:14px;">RSSO Analysis</a>
+  <button class="subtab active"                          style="font-size:14px;">SSO Monthly Report</button>
+  <a class="subtab-ghost" href="full-gis-data.html"      style="text-decoration:none;font-size:14px;">Full GIS SSO/RSSO Data</a>
+  <a class="subtab-ghost" href="rsso-trend.html"         style="text-decoration:none;font-size:14px;">RSSO Trend</a>
+</div>
+
+<div class="page-body">
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <span class="f-label">Time Frame</span>
+    <input id="f-start" type="date" class="f-date" />
+    <span class="f-sep">→</span>
+    <input id="f-end"   type="date" class="f-date" />
+    <div class="f-divider"></div>
+    <span class="f-label">System</span>
+    <select id="f-system" class="f-select" style="min-width:120px;" onchange="renderAll()">
+      <option value="All">All Systems</option>
+      <option value="Public" selected>Public</option>
+      <option value="Public System">Public System</option>
+      <option value="Private">Private</option>
+      <option value="Private System">Private System</option>
+    </select>
+    <div class="f-divider"></div>
+    <span class="f-label">Category</span>
+    <select id="f-cat" class="f-select" style="min-width:140px;" onchange="renderAll()">
+      <option value="All">All Categories</option>
+    </select>
+    <div class="f-divider"></div>
+    <div class="dd-wrap" id="asset-wrap">
+      <button class="dd-btn" onclick="toggleDD('asset')">
+        <span id="asset-label">WW Asset</span><span class="arr">▾</span>
+      </button>
+      <div class="dd-panel" id="asset-panel"></div>
+    </div>
+    <div class="f-divider"></div>
+    <span class="f-label">Manhole</span>
+    <input id="f-manhole" type="text" class="f-text" placeholder="Search…" oninput="renderAll()" />
+    <div class="f-divider"></div>
+    <button class="reset-btn" onclick="resetFilters()">↺ Reset</button>
+    <span class="row-count" id="row-count"></span>
+    <div class="sso-card">
+      <div class="sso-card-lbl">Total SSOs</div>
+      <div class="sso-card-val" id="total-sso-card">-</div>
+    </div>
+  </div>
+
+  <!-- Metrics strip -->
+  <div class="metrics-strip">
+    <div class="metric-card red">
+      <div class="metric-lbl">Kill Fish Incidents</div>
+      <div class="metric-val" id="kf-card">-</div>
+    </div>
+    <div class="metric-card yellow">
+      <div class="metric-lbl">Media Notifications</div>
+      <div class="metric-val" id="mn-card">-</div>
+    </div>
+  </div>
+
+  <div class="content-area">
+
+    <!-- Trend stacked bar chart -->
+    <div class="panel trend-panel">
+      <div class="panel-title">SSO Trend by Cause</div>
+      <div class="panel-body">
+        <div class="cs-outer">
+          <div class="cs-inner" id="trend-inner">
+            <canvas id="trendChart"></canvas>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Bottom 3-column -->
+    <div class="bottom-grid">
+
+      <!-- Left: SSO by Category -->
+      <div class="panel">
+        <div class="panel-title">Total SSO per Cause</div>
+        <div class="panel-body">
+          <div class="cs-outer">
+            <div class="cs-inner" id="cause-inner">
+              <canvas id="causeChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Middle: Approx. SSO Locations map -->
+      <div class="panel">
+        <div class="panel-title">Approx. SSO Locations</div>
+        <div class="panel-body" style="position:relative;">
+          <div id="map-container"></div>
+          <div class="map-note" id="map-note"></div>
+        </div>
+      </div>
+
+      <!-- Right: SSO Detail table -->
+      <div class="panel">
+        <div class="panel-title" id="detail-title">SSO Detail</div>
+        <div class="panel-body">
+          <div class="tbl-outer">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Basin</th>
+                  <th>Manhole</th>
+                  <th>Category</th>
+                  <th>Address</th>
+                  <th>Date</th>
+                </tr>
+              </thead>
+              <tbody id="detail-tbody"></tbody>
+            </table>
+            <div class="tbl-note" id="detail-note"></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+// ── Category colors ───────────────────────────────────────────────────────────
+const MONTH_IDX = {Jan:0,Feb:1,Mar:2,Apr:3,May:4,Jun:5,Jul:6,Aug:7,Sep:8,Oct:9,Nov:10,Dec:11};
+const CAT_COLORS = {
+  'Grease Blockage':  '#E66C37',
+  'Rags/Wipes':       '#118DFF',
+  'Private':          '#9AC4E8',
+  'Structural':       '#E64540',
+  'Other Blockage':   '#7D94B4',
+  'Wet Weather':      '#197278',
+  'Lift Station':     '#C83E6A',
+  'Roots':            '#40AB55',
+  'No Data':          '#4A5A6A',
+  'ARV Failure-FM':   '#6B007B',
+  'WWTP':             '#12239E',
+};
+function catColor(c) { return CAT_COLORS[c] || '#5080A0'; }
+
+function sortPeriod(a, b) {
+  const pa = a.split('-'), pb = b.split('-');
+  if (pa.length === 2 && isNaN(+pa[1]))
+    return (parseInt(pa[0])*100 + (MONTH_IDX[pa[1]]||0)) - (parseInt(pb[0])*100 + (MONTH_IDX[pb[1]]||0));
+  return parseInt(a) - parseInt(b);
+}
+function fmtLabel(p) {
+  const parts = p.split('-');
+  return (parts.length === 2 && isNaN(+parts[1])) ? parts[1] + " '" + parts[0].slice(2) : p;
+}
+function adaptiveW(outer, n, minW) {
+  const pw = (outer ? outer.offsetWidth : 0) || 600;
+  return (pw / Math.max(n,1)) >= minW ? pw : Math.ceil(n * minW + 50);
+}
+
+// ── Filter state (defaults) ───────────────────────────────────────────
+let dateStart = new Date('2021-03-01');
+let dateEnd   = new Date('2024-02-29');
+let fSystem   = 'Public';
+let fCat      = 'All';
+let fAsset    = new Set();
+let fManhole  = '';
+
+function filtered() {
+  const mh = fManhole.trim().toLowerCase();
+  return window.DATA_SSO_MONTHLY.rows.filter(r => {
+    const d = new Date(r.startDate);
+    if (d < dateStart || d > dateEnd) return false;
+    if (fSystem !== 'All' && r.system !== fSystem) return false;
+    if (fCat    !== 'All' && r.excursionCategory !== fCat) return false;
+    if (fAsset.size > 0 && !fAsset.has(r.structureType)) return false;
+    if (mh && !(r.manhole || '').toLowerCase().includes(mh)) return false;
+    return true;
+  });
+}
+
+// ── Init dropdowns ────────────────────────────────────────────────────────────
+function initDropdowns() {
+  const rows = window.DATA_SSO_MONTHLY.rows;
+  // Category <select>
+  const cats = [...new Set(rows.map(r => r.excursionCategory).filter(Boolean))].sort();
+  const catSel = document.getElementById('f-cat');
+  cats.forEach(c => { const o = document.createElement('option'); o.value = o.textContent = c; catSel.appendChild(o); });
+  // Asset multi-select
+  const assets = [...new Set(rows.map(r => r.structureType).filter(Boolean))].sort();
+  buildDD('asset', assets, 'WW Asset', () => renderAll());
+}
+
+// ── Multi-select dropdown ─────────────────────────────────────────────────────
+const _ddState = {};
+function buildDD(key, items, label, onChange) {
+  _ddState[key] = { items, sel: new Set(), onChange };
+  const panel = document.getElementById(key + '-panel');
+  panel.innerHTML = '';
+  const allRow = document.createElement('div');
+  allRow.className = 'dd-item';
+  allRow.innerHTML = '<input type="checkbox" id="dd-all-' + key + '" checked /><label for="dd-all-' + key + '" style="pointer-events:none">Select All</label>';
+  allRow.addEventListener('click', e => { e.stopPropagation(); toggleDDAll(key); });
+  panel.appendChild(allRow);
+  const sep = document.createElement('div'); sep.className = 'dd-sep'; panel.appendChild(sep);
+  items.forEach(item => {
+    const row = document.createElement('div');
+    row.className = 'dd-item'; row.dataset.val = item;
+    row.innerHTML = '<input type="checkbox" checked />' + item;
+    row.addEventListener('click', e => { e.stopPropagation(); toggleDDItem(key, item); });
+    panel.appendChild(row);
+  });
+  updateDDLabel(key, label);
+}
+function toggleDD(key) { document.getElementById(key + '-panel').classList.toggle('open'); }
+function toggleDDAll(key) {
+  const st = _ddState[key]; st.sel.clear();
+  document.getElementById(key + '-panel').querySelectorAll('.dd-item input').forEach(cb => cb.checked = true);
+  updateDDLabel(key, null); st.onChange();
+}
+function toggleDDItem(key, val) {
+  const st = _ddState[key];
+  const panel = document.getElementById(key + '-panel');
+  const allCb = document.querySelector('#dd-all-' + key);
+  if (st.sel.size === 0) {
+    st.sel = new Set(st.items);
+    panel.querySelectorAll('.dd-item[data-val] input').forEach(c => c.checked = true);
+  }
+  const itemRow = [...panel.querySelectorAll('.dd-item[data-val]')].find(r => r.dataset.val === val);
+  const cb = itemRow ? itemRow.querySelector('input') : null;
+  if (st.sel.has(val)) { st.sel.delete(val); if (cb) cb.checked = false; }
+  else { st.sel.add(val); if (cb) cb.checked = true; }
+  if (st.sel.size === 0 || st.sel.size === st.items.length) {
+    st.sel.clear();
+    panel.querySelectorAll('.dd-item input').forEach(c => c.checked = true);
+  }
+  if (allCb) allCb.checked = (st.sel.size === 0);
+  updateDDLabel(key, null); st.onChange();
+}
+function updateDDLabel(key, fallback) {
+  const st = _ddState[key];
+  const lbl = document.getElementById(key + '-label');
+  if (!lbl) return;
+  const base = fallback || (key === 'asset' ? 'WW Asset' : key);
+  lbl.textContent = st.sel.size === 0 ? base : st.sel.size === 1 ? [...st.sel][0] : st.sel.size + ' selected';
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dd-wrap'))
+    document.querySelectorAll('.dd-panel.open').forEach(p => p.classList.remove('open'));
+});
+
+// ── Read filters from DOM ─────────────────────────────────────────────────────
+function readFilters() {
+  dateStart = new Date(document.getElementById('f-start').value || '2021-03-01');
+  dateEnd   = new Date(document.getElementById('f-end').value   || '2024-02-29');
+  fSystem   = document.getElementById('f-system').value;
+  fCat      = document.getElementById('f-cat').value;
+  fAsset    = _ddState['asset'] ? _ddState['asset'].sel : new Set();
+  fManhole  = document.getElementById('f-manhole').value;
+}
+
+function resetFilters() {
+  document.getElementById('f-start').value  = '2021-03-01';
+  document.getElementById('f-end').value    = '2024-02-29';
+  document.getElementById('f-system').value = 'Public';
+  document.getElementById('f-cat').value    = 'All';
+  document.getElementById('f-manhole').value = '';
+  if (_ddState['asset']) {
+    _ddState['asset'].sel.clear();
+    document.getElementById('asset-panel').querySelectorAll('.dd-item input').forEach(cb => cb.checked = true);
+    updateDDLabel('asset', 'WW Asset');
+  }
+  renderAll();
+}
+
+// ── Cards ─────────────────────────────────────────────────────────────────────
+function updateCards(rows) {
+  document.getElementById('total-sso-card').textContent = rows.length.toLocaleString();
+  document.getElementById('kf-card').textContent = rows.filter(r => r.killFish).length.toLocaleString();
+  document.getElementById('mn-card').textContent = rows.filter(r => r.mediaNotif).length.toLocaleString();
+  document.getElementById('row-count').innerHTML = '<strong>' + rows.length.toLocaleString() + '</strong> SSOs';
+}
+
+// ── Chart.js plugin: data labels ──────────────────────────────────────────────
+const valueLabelPlugin = {
+  id: 'valueLabel',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    const stacked = chart.options.scales?.y?.stacked;
+    if (stacked) {
+      // Show total on top of each stacked column
+      const n = chart.data.labels.length;
+      for (let i = 0; i < n; i++) {
+        const total = chart.data.datasets.reduce((s, ds) => s + (ds.data[i] || 0), 0);
+        if (!total) continue;
+        let topY = Infinity;
+        chart.data.datasets.forEach((ds, di) => {
+          const meta = chart.getDatasetMeta(di);
+          if (!meta.hidden && meta.data[i] && ds.data[i] > 0) topY = Math.min(topY, meta.data[i].y);
+        });
+        if (!isFinite(topY)) continue;
+        const x = chart.getDatasetMeta(0).data[i].x;
+        ctx.save();
+        ctx.font = 'bold 8px sans-serif';
+        ctx.fillStyle = 'rgba(200,220,240,.8)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(total.toLocaleString(), x, topY - 1);
+        ctx.restore();
+      }
+    } else {
+      // Show value above each bar
+      chart.data.datasets.forEach((ds, di) => {
+        const meta = chart.getDatasetMeta(di);
+        if (meta.hidden) return;
+        meta.data.forEach((bar, i) => {
+          const v = ds.data[i];
+          if (!v) return;
+          ctx.save();
+          ctx.font = 'bold 9px sans-serif';
+          ctx.fillStyle = 'rgba(200,220,240,.85)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(v.toLocaleString(), bar.x, bar.y - 2);
+          ctx.restore();
+        });
+      });
+    }
+  }
+};
+Chart.register(valueLabelPlugin);
+
+// ── Trend chart ───────────────────────────────────────────────────────────────
+let trendChart = null;
+function buildTrendChart(rows) {
+  const periodSet = new Set(), catSet = new Set(), counts = {};
+  rows.forEach(r => {
+    const p = r.yearMonth || 'Unknown', c = r.excursionCategory || 'Unknown';
+    periodSet.add(p); catSet.add(c);
+    if (!counts[p]) counts[p] = {};
+    counts[p][c] = (counts[p][c] || 0) + 1;
+  });
+  const periods = [...periodSet].sort(sortPeriod);
+  const cats = [...catSet].sort((a, b) => {
+    const ta = Object.values(counts).reduce((s, m) => s + (m[a]||0), 0);
+    const tb = Object.values(counts).reduce((s, m) => s + (m[b]||0), 0);
+    return tb - ta;
+  });
+  const outer = document.getElementById('trend-inner').parentElement;
+  const w = adaptiveW(outer, periods.length, 22);
+  const inner = document.getElementById('trend-inner');
+  inner.style.width = w + 'px';
+  const canvas = document.getElementById('trendChart');
+  canvas.style.width = w + 'px'; canvas.style.height = '100%';
+
+  if (trendChart) trendChart.destroy();
+  trendChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels: periods.map(fmtLabel),
+      datasets: cats.map(cat => ({
+        label: cat,
+        data: periods.map(p => counts[p]?.[cat] || 0),
+        backgroundColor: catColor(cat),
+        borderWidth: 0, borderSkipped: false,
+      })),
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display: true, position: 'top', labels: { color: 'rgba(180,200,220,.8)', font:{ size:10 }, boxWidth:10, padding:7 } },
+        tooltip: {
+          mode:'index', intersect:false,
+          callbacks: { footer: items => 'Total: ' + items.reduce((s,i) => s+i.raw,0).toLocaleString() }
+        },
+        valueLabel: {},
+      },
+      scales: {
+        x: { stacked:true, ticks:{ color:'rgba(139,175,214,.65)', font:{size:10}, maxRotation:45 }, grid:{ color:'rgba(120,150,190,.08)' } },
+        y: { stacked:true, ticks:{ color:'rgba(139,175,214,.65)', font:{size:10} }, grid:{ color:'rgba(120,150,190,.08)' } },
+      },
+    },
+  });
+}
+
+// ── Cause chart ───────────────────────────────────────────────────────────────
+let causeChart = null;
+function buildCauseChart(rows) {
+  const counts = {};
+  rows.forEach(r => { const c = r.excursionCategory || 'Unknown'; counts[c] = (counts[c]||0)+1; });
+  const labels = Object.keys(counts).sort((a,b) => counts[b]-counts[a]);
+  const data   = labels.map(l => counts[l]);
+
+  const outer = document.getElementById('cause-inner').parentElement;
+  const w = adaptiveW(outer, labels.length, 52);
+  const inner = document.getElementById('cause-inner');
+  inner.style.width = w + 'px';
+  const canvas = document.getElementById('causeChart');
+  canvas.style.width = w + 'px'; canvas.style.height = '100%';
+
+  if (causeChart) causeChart.destroy();
+  causeChart = new Chart(canvas, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{ data, backgroundColor: labels.map(catColor), borderWidth:0, borderRadius:3 }],
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      plugins: {
+        legend: { display:false },
+        tooltip: { callbacks: { label: ctx => ctx.parsed.y.toLocaleString() + ' SSOs' } },
+        valueLabel: {},
+      },
+      scales: {
+        x: {
+          ticks: {
+            color:'rgba(139,175,214,.65)', font:{size:10}, maxRotation:45, minRotation:30,
+            callback(val, i) { const l = labels[i]||''; return l.length > 13 ? l.slice(0,12)+'…' : l; },
+          },
+          grid:{ color:'rgba(120,150,190,.08)' },
+        },
+        y: {
+          ticks:{ color:'rgba(139,175,214,.65)', font:{size:10} },
+          grid:{ color:'rgba(120,150,190,.08)' },
+        },
+      },
+    },
+  });
+}
+
+// ── Leaflet map ───────────────────────────────────────────────────────────────
+let leafletMap = null;
+let markerLayer = null;
+const MAP_LIMIT = 4000;
+
+function initMap() {
+  leafletMap = L.map('map-container', {
+    center: [29.76, -95.37], zoom: 10,
+    preferCanvas: true,
+    zoomControl: true,
+  });
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+    maxZoom: 18,
+  }).addTo(leafletMap);
+  markerLayer = L.layerGroup().addTo(leafletMap);
+}
+
+function updateMap(rows) {
+  if (!leafletMap) return;
+  markerLayer.clearLayers();
+
+  const withCoords = rows.filter(r => r.lat && r.lon);
+  const capped = withCoords.length > MAP_LIMIT;
+  const sample = capped ? withCoords.slice(0, MAP_LIMIT) : withCoords;
+
+  sample.forEach(r => {
+    L.circleMarker([r.lat, r.lon], {
+      radius: 4,
+      fillColor: catColor(r.excursionCategory || ''),
+      color: 'rgba(0,0,0,0.3)',
+      weight: 0.5,
+      fillOpacity: 0.7,
+    }).bindPopup(
+      '<b>' + (r.excursionCategory || 'Unknown') + '</b><br>' +
+      '<small>' + (r.address || '-') + '</small><br>' +
+      'Manhole: ' + (r.manhole || '-') + '<br>' +
+      'Date: ' + (r.startDate || '-')
+    ).addTo(markerLayer);
+  });
+
+  const noteEl = document.getElementById('map-note');
+  if (withCoords.length === 0) {
+    noteEl.textContent = 'No coordinate data for current filters';
+    noteEl.style.display = 'block';
+  } else if (capped) {
+    noteEl.textContent = 'Showing ' + MAP_LIMIT.toLocaleString() + ' of ' + withCoords.length.toLocaleString() + ' locations';
+    noteEl.style.display = 'block';
+  } else {
+    noteEl.style.display = 'none';
+  }
+
+  if (sample.length > 0) {
+    try {
+      const lats = sample.map(r => r.lat), lons = sample.map(r => r.lon);
+      const bounds = [[Math.min(...lats), Math.min(...lons)], [Math.max(...lats), Math.max(...lons)]];
+      leafletMap.fitBounds(bounds, { padding: [10, 10], maxZoom: 13 });
+    } catch(e) {}
+  }
+
+  setTimeout(() => { if (leafletMap) leafletMap.invalidateSize(); }, 50);
+}
+
+// ── Detail table ──────────────────────────────────────────────────────────────
+const DETAIL_LIMIT = 300;
+function buildDetailTable(rows) {
+  const sorted = [...rows].sort((a, b) => (b.startDate||'').localeCompare(a.startDate||''));
+  const show   = sorted.slice(0, DETAIL_LIMIT);
+
+  document.getElementById('detail-title').textContent =
+    'SSO Detail' + (rows.length > DETAIL_LIMIT ? ' (latest ' + DETAIL_LIMIT + ')' : '');
+
+  document.getElementById('detail-tbody').innerHTML = show.map(r =>
+    '<tr>' +
+    '<td style="font-size:10px;color:var(--muted);">' + (r.incidentId || '-') + '</td>' +
+    '<td>' + (r.basin || '-') + '</td>' +
+    '<td>' + (r.manhole || '-') + '</td>' +
+    '<td><span class="cat-dot" style="background:' + catColor(r.excursionCategory||'') + '"></span>' + (r.excursionCategory || r.excursionCause || '-') + '</td>' +
+    '<td style="max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="' + (r.address||'') + '">' + (r.address || '-') + '</td>' +
+    '<td style="white-space:nowrap;">' + (r.startDate || '-') + '</td>' +
+    '</tr>'
+  ).join('');
+
+  document.getElementById('detail-note').textContent = rows.length > DETAIL_LIMIT
+    ? 'Showing latest ' + DETAIL_LIMIT + ' of ' + rows.length.toLocaleString() + '. Narrow filters to see more.' : '';
+}
+
+// ── Master render ─────────────────────────────────────────────────────────────
+function renderAll() {
+  readFilters();
+  const rows = filtered();
+  updateCards(rows);
+  buildTrendChart(rows);
+  buildCauseChart(rows);
+  updateMap(rows);
+  buildDetailTable(rows);
+}
+
+document.getElementById('f-start').addEventListener('change', renderAll);
+document.getElementById('f-end').addEventListener('change', renderAll);
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+(function init() {
+  document.getElementById('f-start').value = '2021-03-01';
+  document.getElementById('f-end').value   = '2024-02-29';
+
+  initDropdowns();
+  initMap();
+  renderAll();
+})();
+</script>
+</body>
+</html>

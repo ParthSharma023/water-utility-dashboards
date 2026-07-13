@@ -1,0 +1,775 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RSSO Analysis | SSO Reporting Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <link rel="stylesheet" href="assets/leaflet/leaflet.min.css" />
+  <style>
+    html, body { height:100%; overflow:hidden; }
+    .page-body {
+      height:calc(100vh - 142px);
+      display:flex; flex-direction:column;
+      padding:0 18px 8px; overflow:hidden;
+    }
+
+    /* ── Filter bar ──────────────────────────────────────────────────────── */
+    .filter-bar {
+      display:flex; align-items:center; gap:8px;
+      padding:7px 0; border-bottom:1px solid rgba(122,156,199,.12);
+      margin-bottom:8px; flex-shrink:0; flex-wrap:nowrap;
+    }
+    .f-label { font-size:11px; color:var(--muted); font-weight:600; white-space:nowrap; }
+    .f-select,.f-date,.f-num {
+      height:28px; padding:0 8px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text); font:inherit; font-size:12px;
+    }
+    .f-select { min-width:110px; } .f-date { width:120px; } .f-num { width:46px; }
+    .f-sep { color:var(--muted); font-size:12px; }
+    .f-divider { width:1px; height:20px; background:rgba(120,150,190,.18); flex-shrink:0; }
+    .reset-btn {
+      height:28px; padding:0 10px; width:auto; margin:0;
+      border-radius:5px; border:1px solid rgba(108,143,186,.28);
+      background:rgba(40,60,100,.35); color:var(--muted);
+      font:inherit; font-size:11px; cursor:pointer;
+      flex-shrink:0; white-space:nowrap;
+      display:inline-flex; align-items:center;
+    }
+    .reset-btn:hover { background:rgba(40,77,124,.5); color:var(--text); }
+    .row-count { font-size:11px; color:var(--muted); white-space:nowrap; }
+    .row-count strong { color:var(--text); }
+    .rsso-card {
+      margin-left:auto;
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:6px;
+      padding:3px 14px 5px; text-align:center; min-width:80px; flex-shrink:0;
+    }
+    .rsso-card-lbl { font-size:9px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+    .rsso-card-val { font-size:20px; font-weight:700; color:var(--text); line-height:1.2; }
+
+    /* ── Multi-select dropdown ───────────────────────────────────────────── */
+    .dd-wrap { position:relative; flex-shrink:0; }
+    .dd-btn {
+      height:28px; padding:0 10px; border-radius:5px;
+      border:1px solid rgba(108,143,186,.36);
+      background:#102032; color:var(--text);
+      font:inherit; font-size:12px; cursor:pointer;
+      white-space:nowrap; display:inline-flex; align-items:center; gap:6px;
+    }
+    .dd-btn:hover { border-color:rgba(108,143,186,.6); }
+    .dd-btn .arr { font-size:9px; color:var(--muted); }
+    .dd-panel {
+      display:none; position:absolute; top:calc(100% + 4px); left:0; z-index:999;
+      background:#0f1e2e; border:1px solid rgba(108,143,186,.3);
+      border-radius:7px; box-shadow:0 8px 28px rgba(0,0,0,.55);
+      min-width:200px; max-height:240px; overflow-y:auto; padding:4px 0;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+    }
+    .dd-panel.open { display:block; }
+    .dd-item { display:flex; align-items:center; gap:8px; padding:5px 12px; cursor:pointer; font-size:12px; color:var(--text); user-select:none; }
+    .dd-item:hover { background:rgba(40,77,124,.4); }
+    .dd-item input[type=checkbox] { pointer-events:none; accent-color:#118DFF; flex-shrink:0; }
+    .dd-sep { height:1px; background:rgba(120,150,190,.15); margin:3px 0; }
+
+    /* ── Layout ──────────────────────────────────────────────────────────── */
+    .content-area { flex:1; min-height:0; display:flex; flex-direction:column; gap:8px; }
+    .upper-grid { flex:243; min-height:0; display:grid; grid-template-columns:minmax(0,49fr) minmax(0,51fr); gap:8px; }
+    .lower-grid { flex:390; min-height:0; display:grid; grid-template-columns:minmax(0,59fr) minmax(0,41fr); gap:8px; }
+    .lower-left { display:flex; flex-direction:column; gap:8px; min-height:0; }
+
+    /* ── Panel ───────────────────────────────────────────────────────────── */
+    .panel {
+      background:linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border:1px solid #1F275C; border-radius:7px;
+      box-shadow:0 6px 24px rgba(31,39,92,.45);
+      display:flex; flex-direction:column; min-height:0;
+    }
+    .panel-title {
+      background:#001E60; color:#fff; font-size:12px; font-weight:600;
+      text-align:center; padding:4px 10px; border-radius:7px 7px 0 0; flex-shrink:0;
+      display:flex; align-items:center; justify-content:center; gap:6px;
+    }
+    .xf-chip {
+      background:rgba(17,141,255,.22); border:1px solid rgba(17,141,255,.5);
+      color:#7dc8ff; font-size:10px; font-weight:600; border-radius:10px;
+      padding:1px 7px; cursor:pointer; white-space:nowrap;
+    }
+    .xf-chip:hover { background:rgba(17,141,255,.38); }
+    .panel-body { flex:1; min-height:0; overflow:hidden; position:relative; }
+
+    /* ── Scrollable chart ─────────────────────────────────────────────────── */
+    .cs-outer {
+      width:100%; height:100%; overflow-x:auto; overflow-y:hidden;
+      scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent;
+      box-sizing:border-box;
+    }
+    .cs-outer::-webkit-scrollbar { height:4px; }
+    .cs-outer::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+    .cs-inner { height:100%; position:relative; display:block; }
+
+    /* ── Table ─────────────────────────────────────────────────────────────── */
+    .tbl-wrap { flex:1; min-height:0; overflow:auto; scrollbar-width:thin; scrollbar-color:rgba(139,175,214,.3) transparent; }
+    .tbl-wrap::-webkit-scrollbar { width:5px; height:5px; }
+    .tbl-wrap::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+    .data-tbl { border-collapse:collapse; font-size:11px; width:max-content; min-width:100%; }
+    .data-tbl th,.data-tbl td { padding:4px 7px; border-bottom:1px solid rgba(113,144,186,.1); white-space:nowrap; text-align:left; }
+    .data-tbl thead th {
+      background:rgba(22,33,55,.97); font-weight:700; color:rgba(222,232,244,.84);
+      cursor:pointer; user-select:none; position:sticky; top:0; z-index:1; font-size:11px;
+    }
+    .data-tbl thead th:hover { background:rgba(32,50,88,.97); }
+    .data-tbl thead th.sorted { color:#118DFF; }
+    .sarr { margin-left:3px; opacity:.5; font-size:10px; }
+    .data-tbl tbody tr:nth-child(odd)  { background:rgba(21,35,52,.88); }
+    .data-tbl tbody tr:nth-child(even) { background:rgba(18,29,43,.88); }
+    .data-tbl tbody tr:hover { background:rgba(40,77,124,.55); }
+    .trunc    { max-width:140px; overflow:hidden; text-overflow:ellipsis; display:block; }
+    .trunc-lg { max-width:220px; overflow:hidden; text-overflow:ellipsis; display:block; }
+    .count-chip { display:inline-block; background:#12239E; color:#fff; border-radius:10px; padding:1px 6px; font-size:10px; font-weight:700; min-width:18px; text-align:center; }
+    .count-chip.hi  { background:#C0392B; }
+    .count-chip.med { background:#E66C37; }
+    .cdot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:4px; vertical-align:middle; }
+
+    /* ── Map ─────────────────────────────────────────────────────────────── */
+    .map-body { flex:1; min-height:0; border-radius:0 0 7px 7px; overflow:hidden; position:relative; }
+    #rsso-map { width:100%; height:100%; background:#102032; }
+    .map-legend {
+      position:absolute; bottom:14px; left:14px; z-index:1000;
+      background:rgba(10,18,30,.82); border:1px solid rgba(120,155,194,.22);
+      border-radius:8px; padding:8px 12px 10px; font-size:11px;
+      color:rgba(220,232,244,.9); pointer-events:none;
+    }
+    .map-legend-title { font-weight:700; margin-bottom:5px; color:#fff; }
+    .map-legend-row   { display:flex; align-items:center; gap:6px; margin-top:3px; }
+    .map-legend-dot   { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+    .map-note { position:absolute; top:10px; right:10px; z-index:1000; background:rgba(10,18,30,.78); border:1px solid rgba(120,155,194,.2); border-radius:6px; padding:4px 10px; font-size:10px; color:var(--muted); pointer-events:none; }
+  </style>
+</head>
+<body>
+
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <a href="index.html"
+       style="width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,#118DFF,#12239E);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;letter-spacing:.03em;text-decoration:none;flex-shrink:0;">SSO</a>
+    <div>
+      <h1 style="font-size:22px;margin:0;font-weight:700;">SSO Report</h1>
+      <p style="margin:3px 0 0;font-size:13px;color:var(--muted);">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html"       style="text-decoration:none;font-size:14px;">SSO Analysis</a>
+  <button class="subtab active"                          style="font-size:14px;">RSSO Analysis</button>
+  <a class="subtab-ghost" href="sso-monthly-report.html" style="text-decoration:none;font-size:14px;">SSO Monthly Report</a>
+  <a class="subtab-ghost" href="full-gis-data.html"      style="text-decoration:none;font-size:14px;">Full GIS SSO/RSSO Data</a>
+  <a class="subtab-ghost" href="rsso-trend.html"         style="text-decoration:none;font-size:14px;">RSSO Trend</a>
+</div>
+
+<div class="page-body">
+
+  <div class="filter-bar">
+    <span class="f-label">Time Frame</span>
+    <input id="f-start" type="date" class="f-date" />
+    <span class="f-sep">→</span>
+    <input id="f-end" type="date" class="f-date" />
+    <div class="f-divider"></div>
+    <span class="f-label">SSO Count</span>
+    <input id="f-min" type="number" class="f-num" value="2" min="1" />
+    <span class="f-sep">–</span>
+    <input id="f-max" type="number" class="f-num" value="100" min="1" />
+    <div class="f-divider"></div>
+    <select id="f-system" class="f-select">
+      <option value="">All Systems</option>
+      <option value="Public" selected>Public</option>
+      <option value="Public System">Public System</option>
+    </select>
+    <div class="dd-wrap" id="cause-wrap">
+      <button class="dd-btn" onclick="toggleDD('cause')"><span id="cause-label">Repeat Cause</span><span class="arr">▾</span></button>
+      <div class="dd-panel" id="cause-panel"></div>
+    </div>
+    <div class="dd-wrap" id="type-wrap">
+      <button class="dd-btn" onclick="toggleDD('type')"><span id="type-label">Asset Type</span><span class="arr">▾</span></button>
+      <div class="dd-panel" id="type-panel"></div>
+    </div>
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+    <span class="row-count" id="row-count"></span>
+    <div class="rsso-card">
+      <div class="rsso-card-lbl">RSSO</div>
+      <div class="rsso-card-val" id="card-val">-</div>
+    </div>
+  </div>
+
+  <div class="content-area">
+    <div class="upper-grid">
+      <!-- RSSO Detail table -->
+      <div class="panel">
+        <div class="panel-title" id="tbl-title">RSSO Detail</div>
+        <div class="tbl-wrap">
+          <table class="data-tbl"><thead><tr id="tbl-head"></tr></thead><tbody id="tbl-body"></tbody></table>
+        </div>
+      </div>
+      <!-- SSO Count timeline -->
+      <div class="panel">
+        <div class="panel-title" id="timeline-title">SSO Count</div>
+        <div class="panel-body">
+          <div class="cs-outer" id="timeline-outer">
+            <div class="cs-inner" id="timeline-inner">
+              <canvas id="chart-timeline"></canvas>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="lower-grid">
+      <div class="lower-left">
+        <!-- RSSO by Causes -->
+        <div class="panel" style="flex:195;min-height:0;">
+          <div class="panel-title" id="causes-title">RSSO by Causes</div>
+          <div class="panel-body">
+            <div class="cs-outer" id="causes-outer">
+              <div class="cs-inner" id="causes-inner">
+                <canvas id="chart-causes"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+        <!-- RSSO Trend -->
+        <div class="panel" style="flex:195;min-height:0;">
+          <div class="panel-title" id="trend-title">RSSO Trend</div>
+          <div class="panel-body">
+            <div class="cs-outer" id="trend-outer">
+              <div class="cs-inner" id="trend-inner">
+                <canvas id="chart-trend"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <!-- Map -->
+      <div class="panel">
+        <div class="panel-title" id="map-title">Repeat SSO Location</div>
+        <div class="map-body">
+          <div id="rsso-map"></div>
+          <div class="map-note" id="map-note"></div>
+          <div class="map-legend" id="map-legend"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="assets/leaflet/leaflet.min.js"></script>
+<script src="assets/chartjs/chart.min.js"></script>
+<script src="data.js"></script>
+<script>
+// ── Colours ────────────────────────────────────────────────────────────────
+const CAUSE_COLORS = {
+  'Grease Blockage':'#E66C37','Wet Weather':'#118DFF','Structural':'#12239E',
+  'Rags/Wipes':'#197278','Temporary Blockage':'#1C6E8C','Power Outage':'#C0392B',
+  'Lift Station':'#6B007B','Roots':'#4B8E8D',
+};
+const CAT_COLORS = {
+  'Grease Blockage':'#E66C37','Other Blockage':'#1C6E8C','Structural':'#12239E',
+  'Wet Weather':'#118DFF','Rags/Wipes':'#197278','Lift Station':'#6B007B',
+  'Private':'#888','Roots':'#4B8E8D','ARV Failure-FM':'#aaa',
+};
+function catColor(c) { return CAT_COLORS[c]||'#888'; }
+function normCause(raw) {
+  if (!raw) return 'Unknown';
+  const c = raw.toLowerCase();
+  if (c.includes('wet weather'))        return 'Wet Weather';
+  if (c.includes('grease'))             return 'Grease Blockage';
+  if (c.includes('rags')||c.includes('wipes')) return 'Rags/Wipes';
+  if (c.includes('roots'))              return 'Roots';
+  if (c.includes('structural'))         return 'Structural';
+  if (c.includes('temporary blockage')) return 'Temporary Blockage';
+  if (c.includes('power outage'))       return 'Power Outage';
+  if (c.includes('pump')||c.includes('lift')||c.includes('electrical')||
+      c.includes('mechanical')||c.includes('instrumentation')) return 'Lift Station';
+  return raw;
+}
+function causeColor(raw) { return CAUSE_COLORS[normCause(raw)]||'#888'; }
+
+// ── State ──────────────────────────────────────────────────────────────────
+let selectedCauses = new Set(), selectedTypes = new Set();
+let sortCol = 'countSSOLast2Years', sortDir = -1;
+let chartTimeline = null, chartCauses = null, chartTrend = null;
+let rssoMap = null, markerLayer = null, zoomedKey = null, markersByKey = {};
+
+// Cross-filter: clicking a chart element filters other visuals
+const xf = { period: null, cause: null }; // period from timeline click; cause from causes click
+
+// ── Dropdown helpers ───────────────────────────────────────────────────────
+const ALL_CAUSES = [...new Set(window.DATA_GIS.rows.map(r=>normCause(r.excursionCause)).filter(Boolean).sort())];
+const ALL_TYPES  = [...new Set(window.DATA_GIS.rows.map(r=>r.structureType).filter(Boolean).sort())];
+
+function toggleDD(id) {
+  const p = document.getElementById(id+'-panel'), open = p.classList.contains('open');
+  document.querySelectorAll('.dd-panel').forEach(el=>el.classList.remove('open'));
+  if (!open) p.classList.add('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.dd-wrap')) document.querySelectorAll('.dd-panel').forEach(p=>p.classList.remove('open'));
+});
+function buildDD(id, items, sel, onChange) {
+  const panel = document.getElementById(id+'-panel'); panel.innerHTML='';
+  const allItem = document.createElement('div'); allItem.className='dd-item';
+  allItem.innerHTML=`<input type="checkbox" ${sel.size===0?'checked':''}/><span>All</span>`;
+  allItem.onclick = () => { sel.clear(); onChange(); buildDD(id,items,sel,onChange); render(); };
+  panel.appendChild(allItem);
+  const sep=document.createElement('div'); sep.className='dd-sep'; panel.appendChild(sep);
+  items.forEach(val => {
+    const item=document.createElement('div'); item.className='dd-item';
+    item.innerHTML=`<input type="checkbox" ${sel.size===0||sel.has(val)?'checked':''}/><span>${val}</span>`;
+    item.onclick = () => {
+      if (sel.size===0) { items.forEach(v=>{ if(v!==val) sel.add(v); }); }
+      else if (sel.has(val)) { sel.delete(val); if(sel.size===0) sel.clear(); }
+      else { sel.add(val); if(sel.size===items.length) sel.clear(); }
+      onChange(); buildDD(id,items,sel,onChange); render();
+    };
+    panel.appendChild(item);
+  });
+}
+function updateDDLabel(id, sel, label) {
+  const el=document.getElementById(id+'-label');
+  el.textContent = sel.size===0?label:sel.size===1?[...sel][0]:`${sel.size} selected`;
+}
+
+// ── Filter helpers ─────────────────────────────────────────────────────────
+function getFilters() {
+  return {
+    start:  document.getElementById('f-start').value||null,
+    end:    document.getElementById('f-end').value||null,
+    min:    parseInt(document.getElementById('f-min').value)||1,
+    max:    parseInt(document.getElementById('f-max').value)||9999,
+    system: document.getElementById('f-system').value,
+  };
+}
+
+// RSSO rows: slicer filters + cross-filters
+function filtered() {
+  const f = getFilters();
+  return window.DATA_GIS.rows.filter(r => {
+    if (f.start && r.startDate && r.startDate < f.start) return false;
+    if (f.end   && r.startDate && r.startDate > f.end)   return false;
+    if (r.countSSOLast2Years==null || r.countSSOLast2Years < f.min) return false;
+    if (f.max<9999 && r.countSSOLast2Years > f.max)      return false;
+    if (f.system && r.system !== f.system)                return false;
+    if (selectedCauses.size>0 && !selectedCauses.has(normCause(r.excursionCause))) return false;
+    if (selectedTypes.size >0 && !selectedTypes.has(r.structureType))              return false;
+    // Cross-filters
+    if (xf.cause  && normCause(r.excursionCause) !== xf.cause) return false;
+    if (xf.period) {
+      if (!r.startDate) return false;
+      const [y,m] = r.startDate.split('-').map(Number);
+      const p = `${y}-${new Date(y,m-1,1).toLocaleString('en-US',{month:'short'})}`;
+      if (p !== xf.period) return false;
+    }
+    return true;
+  });
+}
+
+// SSOTimeLine rows: slicer filters + cause cross-filter from chart clicks
+function filteredTimeline() {
+  const f = getFilters();
+  return window.DATA_SSOTIMELINE.rows.filter(r => {
+    if (f.start && r.startDate && r.startDate < f.start) return false;
+    if (f.end   && r.startDate && r.startDate > f.end)   return false;
+    if (f.system && r.system !== f.system)                return false;
+    if (selectedCauses.size>0 && !selectedCauses.has(normCause(r.cause))) return false;
+    if (xf.cause && normCause(r.cause) !== xf.cause)     return false;
+    return true;
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtDate(s) {
+  if (!s) return '-';
+  const [y,m,d]=s.split('-').map(Number);
+  return new Date(y,m-1,d).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function hex2rgba(hex, a) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+function getPanelH(innerEl) {
+  // Walk up to .panel-body and read its height
+  let el = innerEl;
+  while (el && !el.classList.contains('panel-body')) el = el.parentElement;
+  return (el ? el.offsetHeight : 0) || 180;
+}
+function setCanvasSize(canvas, inner, w) {
+  const h = getPanelH(inner);
+  inner.style.width = w + 'px';
+  canvas.style.width  = w + 'px';
+  canvas.style.height = h + 'px';
+  canvas.width  = Math.round(w * devicePixelRatio);
+  canvas.height = Math.round(h * devicePixelRatio);
+}
+
+// ── Plugins ────────────────────────────────────────────────────────────────
+const topLabelPlugin = {
+  id:'topLabel',
+  afterDatasetsDraw(chart) {
+    const ctx = chart.ctx;
+    chart.data.datasets.forEach((ds,i) => {
+      chart.getDatasetMeta(i).data.forEach((bar,j) => {
+        const v = ds.data[j]; if (!v) return;
+        ctx.save();
+        ctx.font='600 9px "Segoe UI",Arial,sans-serif';
+        ctx.fillStyle='rgba(241,245,251,.92)';
+        ctx.textAlign='center'; ctx.textBaseline='bottom';
+        ctx.fillText(v, bar.x, bar.y-2);
+        ctx.restore();
+      });
+    });
+  },
+};
+const stackTotalPlugin = {
+  id:'stackTotal',
+  afterDatasetsDraw(chart) {
+    const ctx=chart.ctx, nDs=chart.data.datasets.length; if(!nDs) return;
+    chart.getDatasetMeta(nDs-1).data.forEach((bar,i)=>{
+      const tot=chart.data.datasets.reduce((s,ds)=>s+(ds.data[i]||0),0); if(!tot) return;
+      ctx.save();
+      ctx.font='600 9px "Segoe UI",Arial,sans-serif';
+      ctx.fillStyle='rgba(241,245,251,.9)'; ctx.textAlign='center'; ctx.textBaseline='bottom';
+      ctx.fillText(tot,bar.x,bar.y-2); ctx.restore();
+    });
+  },
+};
+
+// ── Cross-filter chip helper ───────────────────────────────────────────────
+function xfChipHtml(label, clearFn) {
+  return `<span class="xf-chip" onclick="${clearFn}">✕ ${label}</span>`;
+}
+function updateTitles() {
+  // SSO Count
+  const tlTitle = document.getElementById('timeline-title');
+  tlTitle.innerHTML = 'SSO Count' + (xf.period ? xfChipHtml(xf.period,'clearPeriod()') : '');
+  // Causes
+  const causesTitle = document.getElementById('causes-title');
+  causesTitle.innerHTML = 'RSSO by Causes' + (xf.cause ? xfChipHtml(xf.cause,'clearCause()') : '');
+  // Table
+  const tblTitle = document.getElementById('tbl-title');
+  const chips = [];
+  if (xf.period) chips.push(xfChipHtml(xf.period,'clearPeriod()'));
+  if (xf.cause)  chips.push(xfChipHtml(xf.cause,'clearCause()'));
+  tblTitle.innerHTML = 'RSSO Detail' + chips.join('');
+}
+function clearPeriod() { xf.period=null; render(); }
+function clearCause()  { xf.cause=null;  render(); }
+
+// ── SSO Timeline chart ─────────────────────────────────────────────────────
+function renderTimeline() {
+  const tlRows = filteredTimeline();
+  const periodMap = {};
+  tlRows.forEach(r => { if(r.period) periodMap[r.period]=(periodMap[r.period]||0)+1; });
+  const periods = Object.keys(periodMap).sort((a,b)=>new Date(a.replace('-',' '))-new Date(b.replace('-',' ')));
+  const data = periods.map(p=>periodMap[p]);
+
+  const BAR_W = 40, MIN_W = 300;
+  const w = Math.max(periods.length * BAR_W + 80, MIN_W);
+  const inner = document.getElementById('timeline-inner');
+  const canvas = document.getElementById('chart-timeline');
+  setCanvasSize(canvas, inner, w);
+
+  if (chartTimeline) { chartTimeline.destroy(); chartTimeline=null; }
+
+  // Colour bars: highlight selected period, dim others
+  const bgColors = periods.map(p => {
+    const base = '#118DFF';
+    if (!xf.period) return base;
+    return p===xf.period ? base : hex2rgba(base, 0.25);
+  });
+
+  chartTimeline = new Chart(canvas, {
+    type:'bar',
+    data:{ labels:periods, datasets:[{
+      label:'SSO Count', data, backgroundColor:bgColors,
+      borderRadius:3, borderSkipped:false,
+      maxBarThickness:55,
+    }]},
+    plugins:[topLabelPlugin],
+    options:{
+      responsive:false, animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{title:c=>c[0].label, label:c=>`SSO Count: ${c.parsed.y}`}},
+      },
+      onClick(evt, els, chart) {
+        if (!els.length) { if(xf.period){xf.period=null;render();} return; }
+        const lbl = chart.data.labels[els[0].index];
+        xf.period = xf.period===lbl ? null : lbl;
+        render();
+      },
+      scales:{
+        x:{ ticks:{color:'rgba(180,200,228,.7)',font:{size:9},maxRotation:45,minRotation:45}, grid:{color:'rgba(100,130,180,.08)'} },
+        y:{ ticks:{color:'rgba(180,200,228,.7)',font:{size:9}}, grid:{color:'rgba(100,130,180,.12)'}, beginAtZero:true },
+      },
+    },
+  });
+}
+
+// ── RSSO by Causes (vertical bars, horizontal scroll) ─────────────────────
+function renderCauses(rows) {
+  const counts = {};
+  rows.forEach(r=>{ const n=normCause(r.excursionCause); counts[n]=(counts[n]||0)+1; });
+  const sorted = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+  const labels = sorted.map(([k])=>k);
+  const data   = sorted.map(([,v])=>v);
+
+  // Highlight selected cause, dim others
+  const bgColors = labels.map(k => {
+    const base = CAUSE_COLORS[k]||'#888';
+    if (!xf.cause) return base;
+    return k===xf.cause ? base : hex2rgba(base.length===7?base:'#888888', 0.2);
+  });
+
+  const BAR_W = 80, MIN_W = 300;
+  const w = Math.max(labels.length * BAR_W + 60, MIN_W);
+  const inner = document.getElementById('causes-inner');
+  const canvas = document.getElementById('chart-causes');
+  setCanvasSize(canvas, inner, w);
+
+  if (chartCauses) { chartCauses.destroy(); chartCauses=null; }
+  chartCauses = new Chart(canvas, {
+    type:'bar',
+    data:{ labels, datasets:[{ data, backgroundColor:bgColors, borderRadius:3, borderSkipped:false, maxBarThickness:60 }]},
+    plugins:[topLabelPlugin],
+    options:{
+      responsive:false, animation:false,
+      plugins:{
+        legend:{display:false},
+        tooltip:{callbacks:{title:c=>c[0].label, label:c=>`RSSO: ${c.parsed.y}`}},
+      },
+      onClick(evt, els, chart) {
+        if (!els.length) { if(xf.cause){xf.cause=null;render();} return; }
+        const lbl = chart.data.labels[els[0].index];
+        xf.cause = xf.cause===lbl ? null : lbl;
+        render();
+      },
+      scales:{
+        x:{ ticks:{color:'rgba(180,200,228,.85)',font:{size:10}}, grid:{color:'rgba(100,130,180,.08)'} },
+        y:{ ticks:{color:'rgba(180,200,228,.7)',font:{size:9}}, grid:{color:'rgba(100,130,180,.12)'}, beginAtZero:true },
+      },
+    },
+  });
+}
+
+// ── RSSO Trend stacked bar ────────────────────────────────────────────────
+function renderTrend(rows) {
+  const pm={}, ap=[], cats=new Set();
+  rows.forEach(r=>{
+    if(!r.startDate) return;
+    const [y,m]=r.startDate.split('-').map(Number);
+    const dt=new Date(y,m-1,1);
+    const period=`${y}-${dt.toLocaleString('en-US',{month:'short'})}`;
+    const cat=r.excursionCategory||'Unknown';
+    if(!pm[period]){pm[period]={};ap.push({period,_s:dt.getTime()});}
+    pm[period][cat]=(pm[period][cat]||0)+1;
+    cats.add(cat);
+  });
+  const periods=[...new Map(ap.map(p=>[p.period,p])).values()].sort((a,b)=>a._s-b._s).map(p=>p.period);
+  const catOrder=Object.keys(CAT_COLORS);
+  const categories=[...cats].sort((a,b)=>(catOrder.indexOf(a)===-1?99:catOrder.indexOf(a))-(catOrder.indexOf(b)===-1?99:catOrder.indexOf(b)));
+  const datasets=categories.map(cat=>({
+    label:cat, data:periods.map(p=>(pm[p]||{})[cat]||0),
+    backgroundColor:catColor(cat), borderRadius:2, borderSkipped:false, maxBarThickness:50,
+  }));
+
+  const w=Math.max(periods.length*35+80, 400);
+  const inner=document.getElementById('trend-inner');
+  const canvas=document.getElementById('chart-trend');
+  setCanvasSize(canvas, inner, w);
+
+  if (chartTrend) { chartTrend.destroy(); chartTrend=null; }
+  chartTrend = new Chart(canvas, {
+    type:'bar', data:{labels:periods,datasets},
+    plugins:[stackTotalPlugin],
+    options:{
+      responsive:false, animation:false,
+      plugins:{
+        legend:{display:true,position:'top',labels:{color:'rgba(200,220,244,.85)',font:{size:9},boxWidth:10,padding:8}},
+        tooltip:{callbacks:{title:c=>c[0].label, label:c=>`${c.dataset.label}: ${c.parsed.y}`}},
+      },
+      scales:{
+        x:{stacked:true, ticks:{color:'rgba(180,200,228,.7)',font:{size:9},maxRotation:45,minRotation:45}, grid:{color:'rgba(100,130,180,.08)'}},
+        y:{stacked:true, ticks:{color:'rgba(180,200,228,.7)',font:{size:9}}, grid:{color:'rgba(100,130,180,.12)'}, beginAtZero:true},
+      },
+    },
+  });
+}
+
+// ── RSSO Detail table ─────────────────────────────────────────────────────
+const TBL_COLS=[
+  {k:'incidentId',label:'ID',num:false},{k:'manhole',label:'Manhole',num:false},
+  {k:'countSSOLast2Years',label:'Count',num:true},{k:'latestSSODate',label:'Latest SSO',num:false},
+  {k:'excursionCause',label:'Cause',num:false},{k:'listSSODates',label:'SSO Dates',num:false},
+  {k:'rootCause',label:'Root Cause',num:false},{k:'correctiveAction',label:'Corrective Action',num:false},
+  {k:'contractNumber',label:'Contract #',num:false},{k:'workIssuedDate',label:'Work Issued',num:false},
+  {k:'ctvList',label:'FY21-22 CTV',num:false},{k:'pmDNS',label:'PM DNS',num:false},
+  {k:'pmUPS',label:'PM UPS',num:false},{k:'contractStatus',label:'Contract Status',num:false},
+  {k:'comments',label:'Comment',num:false},{k:'fullAddress',label:'Address',num:false},
+];
+function renderTable(rows) {
+  const thead=document.getElementById('tbl-head'); thead.innerHTML='';
+  TBL_COLS.forEach(col=>{
+    const th=document.createElement('th');
+    th.className=sortCol===col.k?'sorted':'';
+    th.innerHTML=`${col.label}<span class="sarr">${sortCol===col.k?(sortDir===1?'▲':'▼'):'⇅'}</span>`;
+    th.onclick=()=>{ sortDir=sortCol===col.k?-sortDir:(col.num?-1:1); sortCol=col.k; renderTable(rows); };
+    thead.appendChild(th);
+  });
+  const sorted=[...rows].sort((a,b)=>{
+    const av=a[sortCol],bv=b[sortCol];
+    if(av==null&&bv==null)return 0; if(av==null)return 1; if(bv==null)return -1;
+    return(typeof av==='number'?av-bv:String(av).localeCompare(String(bv)))*sortDir;
+  });
+  const tbody=document.getElementById('tbl-body'); tbody.innerHTML='';
+  sorted.forEach(r=>{
+    const cnt=r.countSSOLast2Years??0;
+    const chip=cnt>=5?'count-chip hi':cnt>=3?'count-chip med':'count-chip';
+    const tr=document.createElement('tr');
+    tr.innerHTML=
+      `<td><span class="trunc" title="${r.incidentId||''}">${r.incidentId||'-'}</span></td>`+
+      `<td><strong>${r.manhole||'-'}</strong></td>`+
+      `<td style="text-align:right"><span class="${chip}">${cnt}</span></td>`+
+      `<td>${fmtDate(r.latestSSODate)}</td>`+
+      `<td><span class="cdot" style="background:${causeColor(r.excursionCause)};"></span>${normCause(r.excursionCause)}</td>`+
+      `<td><span class="trunc-lg" title="${r.listSSODates||''}">${r.listSSODates||'-'}</span></td>`+
+      `<td><span class="trunc" title="${r.rootCause||''}">${r.rootCause||'-'}</span></td>`+
+      `<td><span class="trunc" title="${r.correctiveAction||''}">${r.correctiveAction||'-'}</span></td>`+
+      `<td>${r.contractNumber||'-'}</td>`+
+      `<td>${fmtDate(r.workIssuedDate)}</td>`+
+      `<td><span class="trunc" title="${r.ctvList||''}">${r.ctvList||'-'}</span></td>`+
+      `<td><span class="trunc" title="${r.pmDNS||''}">${r.pmDNS||'-'}</span></td>`+
+      `<td><span class="trunc" title="${r.pmUPS||''}">${r.pmUPS||'-'}</span></td>`+
+      `<td>${r.contractStatus||'-'}</td>`+
+      `<td><span class="trunc" title="${r.comments||''}">${r.comments||'-'}</span></td>`+
+      `<td><span class="trunc-lg" title="${r.fullAddress||''}">${r.fullAddress||'-'}</span></td>`;
+    // Click row → zoom map to that manhole
+    if (r.lat!=null && rssoMap) {
+      tr.style.cursor='pointer';
+      tr.onclick=()=>{
+        const key=r.manhole||(r.lat+','+r.lon);
+        rssoMap.setView([r.lat,r.lon],14); zoomedKey=key;
+        L.popup({maxWidth:260}).setLatLng([r.lat,r.lon]).setContent(mkPopup(r)).openOn(rssoMap);
+      };
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Map ───────────────────────────────────────────────────────────────────
+function mkPopup(r) {
+  return `<div style="font:12px 'Segoe UI',sans-serif;min-width:180px;">
+    <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${r.manhole||'-'}</div>
+    <div style="color:#888;margin-bottom:6px;">${r.fullAddress||r.address||'-'}</div>
+    <table style="border-collapse:collapse;width:100%;">
+      <tr><td style="color:#888;padding:1px 8px 1px 0;">Cause</td><td style="font-weight:600;">${normCause(r.excursionCause)}</td></tr>
+      <tr><td style="color:#888;padding:1px 8px 1px 0;">Count</td><td style="font-weight:700;color:#5da8ff;">${r.countSSOLast2Years??'-'}</td></tr>
+      <tr><td style="color:#888;padding:1px 8px 1px 0;">Latest SSO</td><td>${fmtDate(r.latestSSODate)}</td></tr>
+      <tr><td style="color:#888;padding:1px 8px 1px 0;">Basin</td><td>${r.basin||'-'}</td></tr>
+    </table></div>`;
+}
+function markerR(n) { return Math.max(5,Math.min(20,4+n*2)); }
+
+function renderMap(rows) {
+  if (!rssoMap||!markerLayer) return;
+  markerLayer.clearLayers(); markersByKey={};
+  const geo=rows.filter(r=>r.lat!=null&&r.lon!=null);
+  const noGeo=rows.length-geo.length;
+  document.getElementById('map-note').textContent=
+    geo.length===0?'No coordinates for current filter':
+    noGeo>0?`${geo.length.toLocaleString()} of ${rows.length.toLocaleString()} mapped`:
+    `${geo.length.toLocaleString()} mapped`;
+
+  const byMH={};
+  geo.forEach(r=>{ const k=r.manhole||(r.lat+','+r.lon); if(!byMH[k]||r.countSSOLast2Years>byMH[k].countSSOLast2Years) byMH[k]=r; });
+
+  const usedCauses=new Set();
+  Object.values(byMH).forEach(r=>{
+    const key=r.manhole||(r.lat+','+r.lon);
+    const norm=normCause(r.excursionCause);
+    const color=CAUSE_COLORS[norm]||'#888';
+    usedCauses.add(norm);
+    const circle=L.circleMarker([r.lat,r.lon],{
+      radius:markerR(r.countSSOLast2Years||1),
+      fillColor:color,color:'#fff',weight:1,opacity:.7,fillOpacity:.75,
+    });
+    circle.on('click',function(e){
+      L.DomEvent.stopPropagation(e);
+      if(zoomedKey===key){ rssoMap.setView([29.76,-95.37],10); rssoMap.closePopup(); zoomedKey=null; }
+      else { rssoMap.setView([r.lat,r.lon],14); zoomedKey=key; L.popup({maxWidth:260}).setLatLng([r.lat,r.lon]).setContent(mkPopup(r)).openOn(rssoMap); }
+    });
+    markersByKey[key]=circle;
+    markerLayer.addLayer(circle);
+  });
+
+  document.getElementById('map-legend').innerHTML=`<div class="map-legend-title">Cause</div>`+
+    [...usedCauses].map(n=>`<div class="map-legend-row"><div class="map-legend-dot" style="background:${CAUSE_COLORS[n]||'#888'};"></div><span>${n}</span></div>`).join('');
+}
+
+// ── Card ──────────────────────────────────────────────────────────────────
+function renderCard(rows) {
+  document.getElementById('card-val').textContent=rows.filter(r=>r.manhole!=null).length.toLocaleString();
+  document.getElementById('row-count').innerHTML=`<strong>${rows.length.toLocaleString()}</strong> records`;
+}
+
+// ── Main render ───────────────────────────────────────────────────────────
+function render() {
+  const rows=filtered();
+  renderCard(rows);
+  renderTable(rows);
+  renderMap(rows);
+  renderCauses(rows);
+  renderTrend(rows);
+  renderTimeline();
+  updateDDLabel('cause',selectedCauses,'Repeat Cause');
+  updateDDLabel('type', selectedTypes, 'Asset Type');
+  updateTitles();
+}
+
+function resetFilters() {
+  document.getElementById('f-start').value='';
+  document.getElementById('f-end').value='';
+  document.getElementById('f-min').value='2';
+  document.getElementById('f-max').value='100';
+  document.getElementById('f-system').value='Public';
+  selectedCauses.clear(); selectedTypes.clear();
+  xf.period=null; xf.cause=null;
+  buildDD('cause',ALL_CAUSES,selectedCauses,()=>{});
+  buildDD('type', ALL_TYPES, selectedTypes, ()=>{});
+  render();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+(function init(){
+  buildDD('cause',ALL_CAUSES,selectedCauses,()=>{});
+  buildDD('type', ALL_TYPES, selectedTypes, ()=>{});
+  ['f-start','f-end','f-system'].forEach(id=>document.getElementById(id).addEventListener('change',render));
+  ['f-min','f-max'].forEach(id=>{
+    const el=document.getElementById(id);
+    el.addEventListener('change',render); el.addEventListener('input',render);
+  });
+
+  try {
+    rssoMap=L.map('rsso-map',{zoomControl:true}).setView([29.76,-95.37],10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{attribution:'© OpenStreetMap',maxZoom:18}).addTo(rssoMap);
+    markerLayer=L.layerGroup().addTo(rssoMap);
+    const s=document.createElement('style');
+    s.textContent=`.leaflet-popup-content-wrapper,.leaflet-popup-tip{background:#17273a;color:#eff5fb;box-shadow:0 4px 16px rgba(0,0,0,.5);}.leaflet-popup-close-button{color:#b4c0d0!important;}.leaflet-control-attribution{font-size:9px;background:rgba(10,18,30,.7)!important;color:#778!important;}`;
+    document.head.appendChild(s);
+    setTimeout(()=>rssoMap.invalidateSize(),120);
+  } catch(e) { document.getElementById('rsso-map').innerHTML='<div style="color:var(--muted);padding:24px;font-size:12px;">Map unavailable.</div>'; }
+
+  render();
+})();
+</script>
+</body>
+</html>

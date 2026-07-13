@@ -1,0 +1,598 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Full GIS SSO/RSSO Data | SSO Reporting Dashboard</title>
+  <link rel="stylesheet" href="styles.css" />
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="assets/leaflet/leaflet.min.css" />
+  <style>
+    html, body { height: 100%; overflow: hidden; }
+
+    .page-body {
+      height: calc(100vh - 142px);
+      display: flex;
+      flex-direction: column;
+      padding: 0 18px 8px;
+      overflow: hidden;
+    }
+
+    /* ── Filter bar ──────────────────────────────────────────────────────── */
+    .filter-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 0 7px;
+      border-bottom: 1px solid rgba(122,156,199,.12);
+      margin-bottom: 8px;
+      flex-shrink: 0;
+    }
+    .f-label {
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 600;
+      white-space: nowrap;
+    }
+    .f-select, .f-input {
+      height: 28px;
+      padding: 0 8px;
+      border-radius: 5px;
+      border: 1px solid rgba(108,143,186,.36);
+      background: #102032;
+      color: var(--text);
+      font: inherit;
+      font-size: 12px;
+    }
+    .f-select { min-width: 118px; }
+    .f-input  { width: 52px; }
+    .f-date   { width: 126px; }
+    .f-sep    { color: var(--muted); font-size: 12px; }
+    .row-count { font-size:11px; color:var(--muted); }
+    .row-count strong { color:var(--text); }
+
+    .reset-btn {
+      height: 28px; padding: 0 10px;
+      width: auto; margin: 0;
+      border-radius: 5px;
+      border: 1px solid rgba(108,143,186,.28);
+      background: rgba(40,60,100,.35);
+      color: var(--muted);
+      font: inherit; font-size: 11px; cursor: pointer;
+      flex-shrink: 0; white-space: nowrap;
+      display: inline-flex; align-items: center;
+    }
+    .reset-btn:hover { background:rgba(40,77,124,.5); color:var(--text); }
+
+    /* ── Total RSSO card (right of filter bar) ───────────────────────────── */
+    .rsso-card {
+      margin-left: auto;
+      background: linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border: 1px solid #1F275C;
+      border-radius: 6px;
+      padding: 3px 14px 5px;
+      text-align: center;
+      min-width: 88px;
+    }
+    .rsso-card-lbl { font-size:9px; color:var(--muted); font-weight:600; letter-spacing:.05em; text-transform:uppercase; }
+    .rsso-card-val { font-size:20px; font-weight:700; color:var(--text); line-height:1.2; }
+
+    /* ── Two-column body grid ────────────────────────────────────────────── */
+    .body-grid {
+      flex: 1;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0,47fr) minmax(0,53fr);
+      gap: 12px;
+    }
+
+    /* ── Shared panel wrapper ────────────────────────────────────────────── */
+    .panel-wrap {
+      background: linear-gradient(180deg,rgba(26,39,57,.96),rgba(20,31,47,.96));
+      border: 1px solid #1F275C;
+      border-radius: 7px;
+      box-shadow: 0 6px 24px rgba(31,39,92,.45);
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+    .panel-title {
+      background: #001E60;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 600;
+      text-align: center;
+      padding: 5px 10px;
+      border-radius: 7px 7px 0 0;
+      flex-shrink: 0;
+    }
+
+    /* ── Table ───────────────────────────────────────────────────────────── */
+    .tbl-wrap {
+      flex: 1; min-height: 0;
+      overflow: auto;
+      border-radius: 0 0 7px 7px;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(139,175,214,.3) transparent;
+    }
+    .tbl-wrap::-webkit-scrollbar { width:5px; height:5px; }
+    .tbl-wrap::-webkit-scrollbar-thumb { background:rgba(139,175,214,.3); border-radius:99px; }
+
+    .data-tbl { border-collapse:collapse; font-size:12px; width:max-content; min-width:100%; }
+    .data-tbl th, .data-tbl td {
+      padding: 5px 8px;
+      border-bottom: 1px solid rgba(113,144,186,.1);
+      white-space: nowrap;
+      text-align: left;
+    }
+    .data-tbl thead th {
+      background: rgba(22,33,55,.97);
+      font-weight: 700;
+      color: rgba(222,232,244,.84);
+      cursor: pointer; user-select: none;
+      position: sticky; top: 0; z-index: 1;
+    }
+    .data-tbl thead th:hover { background:rgba(32,50,88,.97); }
+    .data-tbl thead th.sorted { color:#118DFF; }
+    .sarr { margin-left:3px; opacity:.5; font-size:10px; }
+    .data-tbl td { color:var(--text); }
+    .data-tbl td.num { text-align:right; }
+    .data-tbl tbody tr:nth-child(odd)  { background:rgba(21,35,52,.88); }
+    .data-tbl tbody tr:nth-child(even) { background:rgba(18,29,43,.88); }
+    .data-tbl tbody tr:hover, .data-tbl tbody tr.row-hi { background:rgba(40,77,124,.55); }
+
+    .count-chip { display:inline-block; background:#12239E; color:#fff; border-radius:10px; padding:1px 7px; font-size:11px; font-weight:700; min-width:20px; text-align:center; }
+    .count-chip.hi  { background:#C0392B; }
+    .count-chip.med { background:#E66C37; }
+    .cdot { display:inline-block; width:7px; height:7px; border-radius:50%; margin-right:5px; vertical-align:middle; }
+    .trunc { max-width:160px; overflow:hidden; text-overflow:ellipsis; display:block; }
+    .trunc-sm { max-width:90px; overflow:hidden; text-overflow:ellipsis; display:block; }
+
+    /* ── Map ─────────────────────────────────────────────────────────────── */
+    .map-body {
+      flex: 1; min-height: 0;
+      border-radius: 0 0 7px 7px;
+      overflow: hidden;
+      position: relative;
+    }
+    #map {
+      width: 100%; height: 100%;
+      background: #102032;
+    }
+
+    /* Map legend */
+    .map-legend {
+      position: absolute;
+      bottom: 14px; left: 14px;
+      z-index: 1000;
+      background: rgba(10,18,30,.82);
+      border: 1px solid rgba(120,155,194,.22);
+      border-radius: 8px;
+      padding: 8px 12px 10px;
+      font-size: 11px;
+      color: rgba(220,232,244,.9);
+      pointer-events: none;
+    }
+    .map-legend-title { font-weight:700; margin-bottom:5px; color:#fff; }
+    .map-legend-row { display:flex; align-items:center; gap:6px; margin-top:3px; }
+    .map-legend-dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+
+    /* No-coords notice */
+    .no-coords-note {
+      position: absolute;
+      top: 10px; right: 10px;
+      z-index: 1000;
+      background: rgba(10,18,30,.78);
+      border: 1px solid rgba(120,155,194,.2);
+      border-radius: 6px;
+      padding: 4px 10px;
+      font-size: 10px;
+      color: var(--muted);
+      pointer-events: none;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── Top bar ───────────────────────────────────────────────────────────── -->
+<div class="topbar">
+  <div style="display:flex;align-items:center;gap:16px;">
+    <a href="index.html"
+       style="width:54px;height:54px;border-radius:10px;background:linear-gradient(135deg,#118DFF,#12239E);display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:15px;letter-spacing:.03em;text-decoration:none;flex-shrink:0;">SSO</a>
+    <div>
+      <h1 style="font-size:22px;margin:0;font-weight:700;">SSO Report</h1>
+      <p style="margin:3px 0 0;font-size:13px;color:var(--muted);">Sanitary Sewer Overflow Tracking</p>
+    </div>
+  </div>
+</div>
+
+<!-- ── Sub-tabs ──────────────────────────────────────────────────────────── -->
+<div class="subtabs">
+  <a class="subtab-ghost" href="index.html"       style="text-decoration:none;font-size:14px;">SSO Analysis</a>
+  <a class="subtab-ghost" href="rsso-analysis.html"      style="text-decoration:none;font-size:14px;">RSSO Analysis</a>
+  <a class="subtab-ghost" href="sso-monthly-report.html" style="text-decoration:none;font-size:14px;">SSO Monthly Report</a>
+  <button class="subtab active" style="font-size:14px;">Full GIS SSO/RSSO Data</button>
+  <a class="subtab-ghost" href="rsso-trend.html"         style="text-decoration:none;font-size:14px;">RSSO Trend</a>
+</div>
+
+<!-- ── Page body ────────────────────────────────────────────────────────── -->
+<div class="page-body">
+
+  <!-- Filter bar -->
+  <div class="filter-bar">
+    <span class="f-label">System</span>
+    <select id="f-system" class="f-select">
+      <option value="">All Systems</option>
+      <option value="Public" selected>Public</option>
+      <option value="Public System">Public System</option>
+    </select>
+
+    <span class="f-label">Min SSO Count</span>
+    <input id="f-count" type="number" class="f-input" value="2" min="1" max="99" />
+
+    <span class="f-label">Start Date</span>
+    <input id="f-start" type="date" class="f-select f-date" />
+    <span class="f-sep">→</span>
+    <input id="f-end"   type="date" class="f-select f-date" />
+
+    <button class="reset-btn" onclick="resetFilters()">Reset</button>
+
+    <span class="row-count" id="row-count"></span>
+
+    <div class="rsso-card">
+      <div class="rsso-card-lbl">Total RSSO</div>
+      <div class="rsso-card-val" id="card-val">-</div>
+    </div>
+  </div>
+
+  <!-- Body: table left, map right -->
+  <div class="body-grid">
+
+    <!-- Left: sortable table -->
+    <div class="panel-wrap">
+      <div class="panel-title">RSSO Detail</div>
+      <div class="tbl-wrap">
+        <table class="data-tbl">
+          <thead><tr id="tbl-head"></tr></thead>
+          <tbody id="tbl-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Right: Leaflet map -->
+    <div class="panel-wrap">
+      <div class="panel-title">Bubble Map by SSO Count</div>
+      <div class="map-body">
+        <div id="map"></div>
+        <div class="no-coords-note" id="no-coords-note"></div>
+        <div class="map-legend" id="map-legend"></div>
+      </div>
+    </div>
+
+  </div><!-- /body-grid -->
+
+</div><!-- /page-body -->
+
+<!-- Leaflet JS (local bundle) -->
+<script src="assets/leaflet/leaflet.min.js"></script>
+<script src="data.js"></script>
+<script>
+// ── Cause normalisation (mirrors Python normalize_cause) ──────────────────
+function normCause(raw) {
+  if (!raw) return 'Unknown';
+  const c = raw.toLowerCase();
+  if (c.includes('wet weather'))        return 'Wet Weather';
+  if (c.includes('grease'))             return 'Grease Blockage';
+  if (c.includes('rags') || c.includes('wipes')) return 'Rags/Wipes';
+  if (c.includes('roots'))              return 'Roots';
+  if (c.includes('structural'))         return 'Structural';
+  if (c.includes('temporary blockage')) return 'Temporary Blockage';
+  if (c.includes('power outage'))       return 'Power Outage';
+  if (c.includes('pump') || c.includes('lift') || c.includes('electrical') ||
+      c.includes('mechanical') || c.includes('instrumentation')) return 'Lift Station';
+  return raw;
+}
+
+const CAUSE_COLORS = {
+  'Grease Blockage':    '#E66C37',
+  'Wet Weather':        '#118DFF',
+  'Structural':         '#12239E',
+  'Rags/Wipes':         '#197278',
+  'Temporary Blockage': '#1C6E8C',
+  'Power Outage':       '#C0392B',
+  'Lift Station':       '#6B007B',
+  'Roots':              '#4B8E8D',
+};
+
+function cc(rawCause) {
+  return CAUSE_COLORS[normCause(rawCause)] || '#888';
+}
+
+// ── State ──────────────────────────────────────────────────────────────────
+let sortCol = 'countSSOLast2Years', sortDir = -1;
+let map, markerLayer;
+let zoomedKey = null;
+let markersByKey = {};
+
+// ── Filter ─────────────────────────────────────────────────────────────────
+function getFilters() {
+  return {
+    system:   document.getElementById('f-system').value,
+    minCount: parseInt(document.getElementById('f-count').value) || 1,
+    start:    document.getElementById('f-start').value || null,
+    end:      document.getElementById('f-end').value   || null,
+  };
+}
+function filtered() {
+  const f = getFilters();
+  return window.DATA_GIS.rows.filter(r => {
+    if (f.system && r.system !== f.system) return false;
+    if (r.countSSOLast2Years == null || r.countSSOLast2Years < f.minCount) return false;
+    if (f.start && r.startDate && r.startDate < f.start) return false;
+    if (f.end   && r.startDate && r.startDate > f.end)   return false;
+    return true;
+  });
+}
+
+// ── Helpers ────────────────────────────────────────────────────────────────
+function fmtDate(s) {
+  if (!s) return '-';
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+function fmtVol(v) {
+  return v == null ? '-' : v.toLocaleString('en-US', { maximumFractionDigits: 0 });
+}
+function markerRadius(count) {
+  return Math.max(5, Math.min(20, 4 + count * 2));
+}
+
+// ── Map ─────────────────────────────────────────────────────────────────────
+function renderMap(rows) {
+  if (!map || !markerLayer) return;
+  markerLayer.clearLayers();
+
+  const geoRows = rows.filter(r => r.lat != null && r.lon != null);
+  const noGeo   = rows.length - geoRows.length;
+
+  document.getElementById('no-coords-note').textContent =
+    geoRows.length === 0
+      ? 'No coordinates available for current filter'
+      : noGeo > 0
+        ? `${geoRows.length.toLocaleString()} of ${rows.length.toLocaleString()} records mapped`
+        : `${geoRows.length.toLocaleString()} records mapped`;
+
+  // Build markers - deduplicate by manhole (show one per manhole, pick max count)
+  const byManhole = {};
+  geoRows.forEach(r => {
+    const key = r.manhole || (r.lat + ',' + r.lon);
+    if (!byManhole[key] || r.countSSOLast2Years > byManhole[key].countSSOLast2Years) {
+      byManhole[key] = r;
+    }
+  });
+
+  markersByKey = {};
+  const causesUsed = new Set();
+  Object.values(byManhole).forEach(r => {
+    const key    = r.manhole || (r.lat + ',' + r.lon);
+    const norm   = normCause(r.excursionCause);
+    const color  = CAUSE_COLORS[norm] || '#888';
+    const radius = markerRadius(r.countSSOLast2Years || 1);
+    causesUsed.add(norm);
+
+    const circle = L.circleMarker([r.lat, r.lon], {
+      radius,
+      fillColor:   color,
+      color:       '#fff',
+      weight:      1,
+      opacity:     0.7,
+      fillOpacity: 0.75,
+    });
+
+    const popupHtml = `
+      <div style="font:12px 'Segoe UI',sans-serif;min-width:180px;">
+        <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${r.manhole || '-'}</div>
+        <div style="color:#888;margin-bottom:6px;">${r.fullAddress || r.address || '-'}</div>
+        <table style="border-collapse:collapse;width:100%;">
+          <tr><td style="color:#888;padding:1px 8px 1px 0;">Cause</td><td style="font-weight:600;">${r.excursionCause || '-'}</td></tr>
+          <tr><td style="color:#888;padding:1px 8px 1px 0;">SSO Count</td><td style="font-weight:700;color:#5da8ff;">${r.countSSOLast2Years ?? '-'}</td></tr>
+          <tr><td style="color:#888;padding:1px 8px 1px 0;">Start Date</td><td>${fmtDate(r.startDate)}</td></tr>
+          <tr><td style="color:#888;padding:1px 8px 1px 0;">Basin</td><td>${r.basin || '-'}</td></tr>
+        </table>
+      </div>`;
+
+    // Click: zoom in and show popup; click again → zoom back out
+    circle.on('click', function(e) {
+      L.DomEvent.stopPropagation(e);
+      if (zoomedKey === key) {
+        map.setView([29.76, -95.37], 10);
+        map.closePopup();
+        zoomedKey = null;
+      } else {
+        map.setView([r.lat, r.lon], 14);
+        zoomedKey = key;
+        L.popup({ maxWidth: 260 })
+          .setLatLng([r.lat, r.lon])
+          .setContent(popupHtml)
+          .openOn(map);
+      }
+    });
+
+    markersByKey[key] = circle;
+    markerLayer.addLayer(circle);
+  });
+
+  // Legend - show only causes present in filtered data
+  const legendEl = document.getElementById('map-legend');
+  legendEl.innerHTML = `<div class="map-legend-title">Cause</div>` +
+    [...causesUsed].map(name => {
+      const color = CAUSE_COLORS[name] || '#888';
+      return `<div class="map-legend-row">
+        <div class="map-legend-dot" style="background:${color};"></div>
+        <span>${name}</span>
+      </div>`;
+    }).join('');
+}
+
+// ── Table ──────────────────────────────────────────────────────────────────
+const COLS = [
+  { k: 'basin',             label: 'Basin',        num: false },
+  { k: 'manhole',           label: 'Manhole',      num: false },
+  { k: 'countSSOLast2Years',label: 'Count',        num: true  },
+  { k: 'excursionCause',    label: 'Cause',        num: false },
+  { k: 'startDate',         label: 'Start Date',   num: false },
+  { k: 'endDate',           label: 'End Date',     num: false },
+  { k: 'firstSSODate',      label: 'First SSO',    num: false },
+  { k: 'listSSODates',      label: 'SSO Dates',    num: false },
+  { k: 'excursionCategory', label: 'Category',     num: false },
+  { k: 'system',            label: 'System',       num: false },
+  { k: 'structureType',     label: 'Struct.',      num: false },
+  { k: 'totalVolLost2Years',label: 'Vol (gal)',    num: true  },
+  { k: 'isWetWeather',      label: 'Wet Wx',       num: false },
+  { k: 'contractStatus',    label: 'Contract',     num: false },
+  { k: 'correctiveAction',  label: 'Corrective Action', num: false },
+  { k: 'workIssuedDate',    label: 'Work Issued',  num: false },
+  { k: 'contractNumber',    label: 'Contract #',   num: false },
+  { k: 'comments',          label: 'Comments',     num: false },
+  { k: 'fullAddress',       label: 'Address',      num: false },
+];
+
+function renderTable(rows) {
+  // Header
+  const thead = document.getElementById('tbl-head');
+  thead.innerHTML = '';
+  COLS.forEach(col => {
+    const th = document.createElement('th');
+    th.className = sortCol === col.k ? 'sorted' : '';
+    th.innerHTML = `${col.label}<span class="sarr">${sortCol === col.k ? (sortDir === 1 ? '▲' : '▼') : '⇅'}</span>`;
+    th.onclick = () => {
+      sortDir = sortCol === col.k ? -sortDir : (col.num ? -1 : 1);
+      sortCol = col.k;
+      render();
+    };
+    thead.appendChild(th);
+  });
+
+  // Sort
+  const sorted = [...rows].sort((a, b) => {
+    const av = a[sortCol], bv = b[sortCol];
+    if (av == null && bv == null) return 0;
+    if (av == null) return 1; if (bv == null) return -1;
+    return (typeof av === 'number' ? av - bv : String(av).localeCompare(String(bv))) * sortDir;
+  });
+
+  const tbody = document.getElementById('tbl-body');
+  tbody.innerHTML = '';
+  sorted.forEach(r => {
+    const cnt     = r.countSSOLast2Years ?? 0;
+    const chipCls = cnt >= 5 ? 'count-chip hi' : cnt >= 3 ? 'count-chip med' : 'count-chip';
+    const wwCell  = r.isWetWeather === 'YES'
+      ? `<span style="color:#118DFF;font-weight:600;">&#10003;</span>`
+      : `<span style="color:var(--muted);">-</span>`;
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${r.basin || '-'}</td>` +
+      `<td><strong>${r.manhole || '-'}</strong></td>` +
+      `<td class="num"><span class="${chipCls}">${cnt}</span></td>` +
+      `<td><span class="cdot" style="background:${cc(r.excursionCause)};"></span>${r.excursionCause || '-'}</td>` +
+      `<td>${fmtDate(r.startDate)}</td>` +
+      `<td>${fmtDate(r.endDate)}</td>` +
+      `<td>${fmtDate(r.firstSSODate)}</td>` +
+      `<td><span class="trunc" title="${r.listSSODates||''}">${r.listSSODates||'-'}</span></td>` +
+      `<td>${r.excursionCategory || '-'}</td>` +
+      `<td>${r.system || '-'}</td>` +
+      `<td>${r.structureType || '-'}</td>` +
+      `<td class="num">${fmtVol(r.totalVolLost2Years)}</td>` +
+      `<td class="num">${wwCell}</td>` +
+      `<td>${r.contractStatus || '-'}</td>` +
+      `<td><span class="trunc" title="${r.correctiveAction||''}">${r.correctiveAction||'-'}</span></td>` +
+      `<td>${fmtDate(r.workIssuedDate)}</td>` +
+      `<td>${r.contractNumber || '-'}</td>` +
+      `<td><span class="trunc-sm" title="${r.comments||''}">${r.comments||'-'}</span></td>` +
+      `<td><span class="trunc" title="${r.fullAddress||''}">${r.fullAddress||'-'}</span></td>`;
+
+    // Clicking a row zooms map to its marker; click marker to zoom back out
+    if (r.lat != null && map) {
+      tr.style.cursor = 'pointer';
+      tr.onclick = () => {
+        const key = r.manhole || (r.lat + ',' + r.lon);
+        map.setView([r.lat, r.lon], 14);
+        zoomedKey = key;
+        L.popup({ maxWidth: 260 })
+          .setLatLng([r.lat, r.lon])
+          .setContent(`
+            <div style="font:12px 'Segoe UI',sans-serif;min-width:180px;">
+              <div style="font-weight:700;font-size:13px;margin-bottom:4px;">${r.manhole || '-'}</div>
+              <div style="color:#888;margin-bottom:6px;">${r.fullAddress || r.address || '-'}</div>
+              <table style="border-collapse:collapse;width:100%;">
+                <tr><td style="color:#888;padding:1px 8px 1px 0;">Cause</td><td style="font-weight:600;">${r.excursionCause || '-'}</td></tr>
+                <tr><td style="color:#888;padding:1px 8px 1px 0;">SSO Count</td><td style="font-weight:700;color:#5da8ff;">${r.countSSOLast2Years ?? '-'}</td></tr>
+                <tr><td style="color:#888;padding:1px 8px 1px 0;">Start Date</td><td>${fmtDate(r.startDate)}</td></tr>
+                <tr><td style="color:#888;padding:1px 8px 1px 0;">Basin</td><td>${r.basin || '-'}</td></tr>
+              </table>
+            </div>`)
+          .openOn(map);
+      };
+    }
+    tbody.appendChild(tr);
+  });
+}
+
+// ── Main render ────────────────────────────────────────────────────────────
+function render() {
+  const rows = filtered();
+  document.getElementById('card-val').textContent =
+    new Set(rows.map(r => r.manhole)).size.toLocaleString();
+  document.getElementById('row-count').innerHTML =
+    `<strong>${rows.length.toLocaleString()}</strong> records`;
+  renderTable(rows);
+  renderMap(rows);
+}
+
+function resetFilters() {
+  document.getElementById('f-system').value = 'Public';
+  document.getElementById('f-count').value  = '2';
+  document.getElementById('f-start').value  = '';
+  document.getElementById('f-end').value    = '';
+  render();
+}
+
+// ── Init ───────────────────────────────────────────────────────────────────
+(function init() {
+  ['f-system', 'f-count', 'f-start', 'f-end'].forEach(id => {
+    document.getElementById(id).addEventListener('change', render);
+  });
+  document.getElementById('f-count').addEventListener('input', render);
+
+  // Initialise Leaflet map - guarded so table still renders if map fails
+  try {
+    map = L.map('map', { zoomControl: true }).setView([29.76, -95.37], 10);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      attribution: '© OpenStreetMap contributors',
+      maxZoom: 18,
+    }).addTo(map);
+    markerLayer = L.layerGroup().addTo(map);
+
+    const styleEl = document.createElement('style');
+    styleEl.textContent = `
+      .leaflet-popup-content-wrapper, .leaflet-popup-tip {
+        background: #17273a; color: #eff5fb;
+        box-shadow: 0 4px 16px rgba(0,0,0,.5);
+      }
+      .leaflet-popup-close-button { color: #b4c0d0 !important; }
+      .leaflet-control-attribution { font-size:9px; background:rgba(10,18,30,.7) !important; color:#778 !important; }
+      .leaflet-control-attribution a { color:#5a9 !important; }
+    `;
+    document.head.appendChild(styleEl);
+    setTimeout(() => map.invalidateSize(), 100);
+  } catch (e) {
+    document.getElementById('map').innerHTML =
+      '<div style="color:var(--muted);padding:24px;font-size:12px;">Map unavailable - Leaflet failed to load.</div>';
+    console.warn('Leaflet init failed:', e);
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>

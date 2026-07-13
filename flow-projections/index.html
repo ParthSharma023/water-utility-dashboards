@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Wastewater Flow Projections through 2120</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0/dist/chartjs-plugin-datalabels.min.js"></script>
+<style>
+:root {
+  --bg:      #0c1522;
+  --panel:   #162436;
+  --panel-2: #1b2a3d;
+  --border:  rgba(139,175,214,0.22);
+  --text:    #f1f5fb;
+  --muted:   #b4c0d0;
+  --teal:    #48d0c9;
+  --shadow:  0 18px 44px rgba(5,12,22,0.38);
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100vh;
+  overflow: hidden;
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-size: 13px;
+  background:
+    radial-gradient(circle at top right, rgba(56,92,138,0.28), transparent 30%),
+    linear-gradient(180deg, #0c1522 0%, #122033 100%);
+  background-attachment: fixed;
+  color: var(--text);
+}
+
+/* ── App shell ───────────────────────────────────────────────── */
+.app { display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+
+/* ── Topbar ──────────────────────────────────────────────────── */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 10px 18px;
+  border-bottom: 1px solid rgba(122,156,199,0.14);
+  flex-shrink: 0;
+  background: rgba(12,21,34,0.6);
+}
+.topbar-title { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; white-space: nowrap; }
+.topbar-filters { display: flex; gap: 10px; flex: 1; align-items: flex-end; flex-wrap: nowrap; }
+.filter-group { display: flex; flex-direction: column; gap: 2px; }
+.filter-group label { font-size: 9px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; }
+select {
+  height: 30px; border-radius: 8px;
+  border: 1px solid rgba(108,143,186,0.4);
+  background: #0d1d2e; color: var(--text);
+  padding: 0 8px; font: inherit; font-size: 12px;
+  cursor: pointer; outline: none; min-width: 100px;
+}
+select:focus { border-color: var(--teal); }
+
+/* Population KPI card - topbar, aligned above pie chart column */
+.pop-kpi-topbar {
+  position: relative; overflow: hidden; flex-shrink: 0;
+  width: 195px;
+  border-radius: 12px;
+  border: 1px solid rgba(226,170,48,0.28);
+  background: linear-gradient(180deg, rgba(46,34,8,0.92), rgba(28,20,4,0.92));
+  box-shadow: 0 8px 24px rgba(5,12,22,0.3);
+  padding: 8px 12px 8px 18px;
+  line-height: 1.2;
+}
+.pop-kpi-topbar::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+  background: linear-gradient(180deg, #e2aa30, #c5661d);
+}
+.pop-kpi-lbl { font-size: 9px; font-weight: 700; color: #e2aa30; text-transform: uppercase; letter-spacing: .07em; }
+.pop-kpi-val { font-size: 26px; font-weight: 800; letter-spacing: -0.03em; color: var(--text); }
+.pop-kpi-sub { font-size: 9px; color: var(--muted); }
+
+/* ── Tab bar ─────────────────────────────────────────────────── */
+.subtabs {
+  display: flex; gap: 0; flex-shrink: 0;
+  padding: 0 18px;
+  border-bottom: 1px solid rgba(122,156,199,0.12);
+  background: rgba(12,21,34,0.4);
+}
+.subtab {
+  position: relative; padding: 8px 0; margin-right: 22px;
+  font-size: 13px; font-weight: 500;
+  color: rgba(214,226,239,0.6);
+  background: transparent; border: 0; cursor: pointer;
+  font-family: inherit; white-space: nowrap; transition: color .15s;
+}
+.subtab:hover { color: rgba(241,245,251,0.9); }
+.subtab.active { color: var(--teal); }
+.subtab.active::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: -1px;
+  height: 3px; border-radius: 999px; background: var(--teal);
+}
+
+/* ── Tab panes ───────────────────────────────────────────────── */
+.tab-pane { display: none; }
+.tab-pane.active { display: flex; flex: 1; overflow: hidden; }
+
+/* ════════════════════════ PAGE 1 ════════════════════════════ */
+/* Two-column layout: left (dominant) + right (compact sidebar) */
+.p1-left {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  padding: 10px 8px 10px 14px;
+  gap: 8px;
+}
+.p1-right {
+  width: 215px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  padding: 6px 8px 8px 8px;
+  gap: 6px;
+  margin: 10px 10px 10px 0;
+  border-radius: 16px;
+  border: 1px solid rgba(139,175,214,0.22);
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  box-shadow: 0 18px 44px rgba(5,12,22,0.38);
+}
+
+/* Section labels */
+.section-lbl {
+  font-size: 11px; font-weight: 700;
+  color: rgba(214,226,239,0.55);
+  text-transform: uppercase; letter-spacing: .06em;
+  flex-shrink: 0;
+}
+
+/* Map */
+.map-wrap {
+  flex: 1; min-height: 0;
+  border-radius: 16px; overflow: hidden;
+  border: 1px solid rgba(139,175,214,0.22);
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  box-shadow: 0 18px 44px rgba(5,12,22,0.38);
+  display: flex; flex-direction: column;
+}
+#map { flex: 1; min-height: 0; }
+.map-ms-legend {
+  flex-shrink: 0;
+  display: flex; flex-wrap: wrap; gap: 4px 10px;
+  padding: 5px 10px;
+  border-top: 1px solid rgba(139,175,214,0.12);
+  background: rgba(12,21,34,0.6);
+}
+.ms-leg-item {
+  display: inline-flex; align-items: center; gap: 5px;
+  font-size: 10px; color: var(--muted); white-space: nowrap;
+}
+.ms-leg-dot {
+  width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+}
+
+/* Chart panel */
+.chart-wrap {
+  flex: 1.5; min-height: 0;
+  display: flex; flex-direction: column;
+  border-radius: 16px;
+  border: 1px solid rgba(139,175,214,0.22);
+  background: linear-gradient(180deg, rgba(26,39,57,0.96), rgba(20,31,47,0.96));
+  box-shadow: 0 18px 44px rgba(5,12,22,0.38);
+  padding: 8px 10px 6px;
+}
+.chart-canvas-wrap { flex: 1; min-height: 0; position: relative; }
+.chart-legend {
+  display: flex; gap: 10px; flex-wrap: wrap;
+  padding-top: 4px; flex-shrink: 0;
+}
+.cl-item { display: flex; align-items: center; gap: 4px; font-size: 10px; color: var(--muted); }
+.cl-sw { width: 9px; height: 9px; border-radius: 2px; flex-shrink: 0; }
+
+/* ── Right sidebar - 4 equal donut rows ─────────────────────── */
+.donut-row {
+  flex: 1; min-height: 0;
+  display: flex; flex-direction: column;
+  align-items: center;
+  padding: 4px 6px;
+  border-bottom: 1px solid rgba(139,175,214,0.08);
+}
+.donut-row:last-child { border-bottom: none; }
+.donut-yr {
+  font-size: 11px; font-weight: 700;
+  color: rgba(214,226,239,0.65); margin-bottom: 2px;
+  flex-shrink: 0;
+}
+.donut-canvas-wrap { flex: 1; min-height: 0; width: 100%; position: relative; }
+.donut-pcts {
+  display: flex; gap: 5px; flex-shrink: 0;
+  font-size: 9px; font-weight: 600; margin-top: 2px;
+}
+.donut-pcts-lbl {
+  display: flex; gap: 6px; flex-shrink: 0;
+  font-size: 8px; color: rgba(180,192,208,0.6); margin-top: 1px;
+}
+.pct-res   { color: #5da8ff; }
+.pct-base  { color: #9ca3af; }
+.pct-trade { color: #f97316; }
+
+/* ════════════════════ DIURNAL PAGES ═════════════════════════ */
+.diurnal-topbar {
+  padding: 9px 18px; border-bottom: 1px solid rgba(122,156,199,0.1);
+  flex-shrink: 0; text-align: center;
+  background: rgba(12,21,34,0.4);
+}
+.diurnal-topbar h1 { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+.d-label { color: var(--teal); }
+.d-sep   { color: rgba(180,192,208,0.25); margin: 0 8px; }
+.d-type  { color: #f97316; }
+
+.diurnal-pane { display: none; flex-direction: column; flex: 1; overflow: hidden; }
+.diurnal-pane.active { display: flex; }
+
+.diurnal-body { display: flex; flex: 1; overflow: hidden; gap: 10px; padding: 10px 14px; }
+
+.diurnal-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  flex: 1; gap: 10px; min-width: 0;
+}
+.dp {
+  border-radius: 12px; border: 1px solid var(--border);
+  padding: 8px 10px 6px;
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow);
+}
+.dp h3 {
+  font-size: 11px; font-weight: 700; text-align: center;
+  letter-spacing: .02em; margin-bottom: 4px; flex-shrink: 0;
+}
+.dp-canvas-wrap { flex: 1; min-height: 0; position: relative; }
+
+.dp-2020 { background: linear-gradient(180deg,rgba(20,52,38,0.95),rgba(12,31,22,0.97)); border-color: rgba(56,190,164,0.25); }
+.dp-2020 h3 { color: #6ee7b7; }
+.dp-2045 { background: linear-gradient(180deg,rgba(46,38,14,0.95),rgba(28,22,6,0.97));  border-color: rgba(214,163,30,0.25); }
+.dp-2045 h3 { color: #fcd34d; }
+.dp-2070 { background: linear-gradient(180deg,rgba(16,36,68,0.95),rgba(10,22,46,0.97)); border-color: rgba(93,168,255,0.25); }
+.dp-2070 h3 { color: #93c5fd; }
+.dp-2120 { background: linear-gradient(180deg,rgba(50,18,18,0.95),rgba(30,10,10,0.97)); border-color: rgba(207,67,54,0.25); }
+.dp-2120 h3 { color: #fca5a5; }
+
+.diurnal-right {
+  width: 215px; flex-shrink: 0;
+  display: flex; flex-direction: column;
+  gap: 8px; overflow-y: auto;
+  padding: 0 0 0 2px;
+}
+.d-filter-panel {
+  background: linear-gradient(180deg,rgba(26,39,57,0.96),rgba(20,31,47,0.96));
+  border: 1px solid var(--border); border-radius: 12px;
+  padding: 10px 12px; display: flex; flex-direction: column; gap: 8px;
+}
+.stat-card {
+  position: relative; padding: 8px 10px 7px 18px;
+  border-radius: 12px; overflow: hidden;
+  box-shadow: var(--shadow); flex-shrink: 0;
+}
+.stat-card::before {
+  content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 5px;
+}
+.sc-2020 { background: linear-gradient(180deg,rgba(20,52,38,0.9),rgba(14,36,26,0.9)); border:1px solid rgba(56,190,164,0.2); }
+.sc-2020::before { background: linear-gradient(180deg,#38bea4,#2c9985); }
+.sc-2045 { background: linear-gradient(180deg,rgba(46,38,14,0.9),rgba(30,24,8,0.9));  border:1px solid rgba(214,163,30,0.2); }
+.sc-2045::before { background: linear-gradient(180deg,#e2aa30,#cb8d1f); }
+.sc-2070 { background: linear-gradient(180deg,rgba(16,36,68,0.9),rgba(10,24,50,0.9)); border:1px solid rgba(93,168,255,0.2); }
+.sc-2070::before { background: linear-gradient(180deg,#56a7ff,#4279be); }
+.sc-2120 { background: linear-gradient(180deg,rgba(50,18,18,0.9),rgba(34,12,12,0.9)); border:1px solid rgba(207,67,54,0.2); }
+.sc-2120::before { background: linear-gradient(180deg,#ef5848,#c13326); }
+.stat-card .sv { font-size: 22px; font-weight: 800; letter-spacing: -0.03em; }
+.sc-2020 .sv{color:#6ee7b7;} .sc-2045 .sv{color:#fcd34d;}
+.sc-2070 .sv{color:#93c5fd;} .sc-2120 .sv{color:#fca5a5;}
+.stat-card .sl { font-size: 10px; color: var(--muted); margin-top: 1px; }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="topbar-title">Wastewater Flow Projections through 2120</div>
+    <div class="topbar-filters">
+      <div class="filter-group"><label>LS Name</label><select id="f-ls"><option value="">All</option></select></div>
+      <div class="filter-group"><label>Major System</label><select id="f-ms"><option value="">All</option></select></div>
+      <div class="filter-group"><label>WWTP SA</label><select id="f-sa"></select></div>
+    </div>
+    <div class="pop-kpi-topbar">
+      <div class="pop-kpi-lbl">Population</div>
+      <div class="pop-kpi-val" id="pop-val">-</div>
+      <div class="pop-kpi-sub">2020 base year</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div class="subtabs">
+    <button class="subtab active" data-page="p1">Flow Projection</button>
+    <button class="subtab" data-page="p2">Diurnal - Weekday Total Flow</button>
+    <button class="subtab" data-page="p3">Diurnal - Weekend Total Flow</button>
+  </div>
+
+  <!-- ══ PAGE 1 ══ -->
+  <div class="tab-pane active" id="p1">
+    <!-- Left: map + chart -->
+    <div class="p1-left">
+      <div class="section-lbl">Subcatchment Viewer</div>
+      <div class="map-wrap">
+        <div id="map"></div>
+        <div id="map-ms-legend" class="map-ms-legend" style="display:none"></div>
+      </div>
+      <div class="section-lbl">Flow Projection through 2120</div>
+      <div class="chart-wrap">
+        <div class="chart-canvas-wrap"><canvas id="comboChart"></canvas></div>
+        <div class="chart-legend">
+          <div class="cl-item"><div class="cl-sw" style="background:#f97316"></div>Proj TradeFlow</div>
+          <div class="cl-item"><div class="cl-sw" style="background:#9ca3af"></div>Proj Baseflow</div>
+          <div class="cl-item"><div class="cl-sw" style="background:#5da8ff"></div>Proj ResFlow</div>
+          <div class="cl-item"><div class="cl-sw" style="background:#a855f7;border-radius:50%"></div>Sum of Proj Flow</div>
+          <div class="cl-item"><div class="cl-sw" style="background:#e2aa30;border-radius:50%"></div>75% Permit</div>
+          <div class="cl-item"><div class="cl-sw" style="background:#cf4336;border-radius:50%"></div>90% Permit</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right: 4 equal donut rows -->
+    <div class="p1-right">
+      <div class="donut-row">
+        <div class="donut-yr">2024</div>
+        <div class="donut-canvas-wrap"><canvas id="d2024"></canvas></div>
+        <div class="donut-pcts" id="pct2024"></div>
+        <div class="donut-pcts-lbl"><span>Baseflow</span><span>ResFlow</span><span>TradeFlow</span></div>
+      </div>
+      <div class="donut-row">
+        <div class="donut-yr">2045</div>
+        <div class="donut-canvas-wrap"><canvas id="d2045"></canvas></div>
+        <div class="donut-pcts" id="pct2045"></div>
+        <div class="donut-pcts-lbl"><span>Baseflow</span><span>ResFlow</span><span>TradeFlow</span></div>
+      </div>
+      <div class="donut-row">
+        <div class="donut-yr">2070</div>
+        <div class="donut-canvas-wrap"><canvas id="d2070"></canvas></div>
+        <div class="donut-pcts" id="pct2070"></div>
+        <div class="donut-pcts-lbl"><span>Baseflow</span><span>ResFlow</span><span>TradeFlow</span></div>
+      </div>
+      <div class="donut-row">
+        <div class="donut-yr">2120</div>
+        <div class="donut-canvas-wrap"><canvas id="d2120"></canvas></div>
+        <div class="donut-pcts" id="pct2120"></div>
+        <div class="donut-pcts-lbl"><span>Baseflow</span><span>ResFlow</span><span>TradeFlow</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE 2 - Weekday ══ -->
+  <div class="tab-pane" id="p2">
+    <div class="diurnal-pane active">
+      <div class="diurnal-topbar">
+        <h1><span class="d-label">Diurnal Patterns</span><span class="d-sep">|</span><span class="d-type">Weekday Total Wastewater Flow</span></h1>
+      </div>
+      <div class="diurnal-body">
+        <div class="diurnal-grid">
+          <div class="dp dp-2020"><h3>2020 Weekday Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwd2020"></canvas></div></div>
+          <div class="dp dp-2045"><h3>2045 Weekday Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwd2045"></canvas></div></div>
+          <div class="dp dp-2070"><h3>2070 Weekday Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwd2070"></canvas></div></div>
+          <div class="dp dp-2120"><h3>2120 Weekday Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwd2120"></canvas></div></div>
+        </div>
+        <div class="diurnal-right">
+
+          <div class="stat-card sc-2020"><div class="sv" id="sc-wd2020">-</div><div class="sl">Total Flow_WD 2020</div></div>
+          <div class="stat-card sc-2045"><div class="sv" id="sc-wd2045">-</div><div class="sl">Total Flow WD 2045</div></div>
+          <div class="stat-card sc-2070"><div class="sv" id="sc-wd2070">-</div><div class="sl">Total Flow WD 2070</div></div>
+          <div class="stat-card sc-2120"><div class="sv" id="sc-wd2120">-</div><div class="sl">Total Flow WD 2120</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ PAGE 3 - Weekend ══ -->
+  <div class="tab-pane" id="p3">
+    <div class="diurnal-pane active">
+      <div class="diurnal-topbar">
+        <h1><span class="d-label">Diurnal Patterns</span><span class="d-sep">|</span><span class="d-type" style="color:#e2aa30;">Weekend Total Wastewater Flow</span></h1>
+      </div>
+      <div class="diurnal-body">
+        <div class="diurnal-grid">
+          <div class="dp dp-2020"><h3>2020 Weekend Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwe2020"></canvas></div></div>
+          <div class="dp dp-2045"><h3>2045 Weekend Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwe2045"></canvas></div></div>
+          <div class="dp dp-2070"><h3>2070 Weekend Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwe2070"></canvas></div></div>
+          <div class="dp dp-2120"><h3>2120 Weekend Total Flow, MGD</h3><div class="dp-canvas-wrap"><canvas id="dwe2120"></canvas></div></div>
+        </div>
+        <div class="diurnal-right">
+
+          <div class="stat-card sc-2020"><div class="sv" id="sc-we2020">-</div><div class="sl">Total Flow_WE 2020</div></div>
+          <div class="stat-card sc-2045"><div class="sv" id="sc-we2045">-</div><div class="sl">Total Flow WE 2045</div></div>
+          <div class="stat-card sc-2070"><div class="sv" id="sc-we2070">-</div><div class="sl">Total Flow WE 2070</div></div>
+          <div class="stat-card sc-2120"><div class="sv" id="sc-we2120">-</div><div class="sl">Total Flow WE 2120</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- .app -->
+
+<script src="data.js"></script>
+<script>
+
+const PALETTE = ['#3b82f6','#f97316','#22c55e','#a855f7','#ef4444','#eab308',
+                 '#06b6d4','#ec4899','#84cc16','#f59e0b','#6366f1','#14b8a6',
+                 '#fb923c','#a3e635','#c084fc','#f43f5e','#38bdf8','#4ade80'];
+const SA_COLORS = {};
+DATA.service_areas.forEach((sa,i) => SA_COLORS[sa] = PALETTE[i % PALETTE.length]);
+const MS_COLORS = {};
+DATA.major_systems.forEach((ms,i) => MS_COLORS[ms] = PALETTE[i % PALETTE.length]);
+
+const TT = {backgroundColor:'#0f1e30',titleColor:'#f1f5fb',bodyColor:'#b4c0d0',
+            borderColor:'rgba(139,175,214,0.3)',borderWidth:1,padding:8,cornerRadius:6};
+const GRID = 'rgba(139,175,214,0.07)';
+const TICK = '#7a8fa8';
+
+// Tabs
+document.querySelectorAll('.subtab').forEach(t => {
+  t.addEventListener('click', () => {
+    document.querySelectorAll('.subtab').forEach(x => x.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(x => x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById(t.dataset.page).classList.add('active');
+    if (t.dataset.page === 'p2' && !CHARTS['dwd2020']) buildDiurnalPage('p2');
+    if (t.dataset.page === 'p3' && !CHARTS['dwe2020']) buildDiurnalPage('p3');
+  });
+});
+
+// Populate selects
+function populate(id, items) {
+  const el = document.getElementById(id);
+  items.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); });
+}
+// Static: SA and Flowmeter never cascade
+const saEl = document.getElementById('f-sa');
+DATA.service_areas.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; saEl.appendChild(o); });
+
+
+// Cascade helpers
+function repopMS(msId, sa) {
+  const el = document.getElementById(msId);
+  const prev = el.value;
+  el.innerHTML = '<option value="">All</option>';
+  const items = sa && CASCADE[sa] ? CASCADE[sa].ms : DATA.major_systems;
+  items.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); });
+  el.value = items.includes(prev) ? prev : '';
+}
+function repopLS(lsId, sa, ms) {
+  const el = document.getElementById(lsId);
+  const prev = el.value;
+  el.innerHTML = '<option value="">All</option>';
+  let items;
+  if (sa && ms && CASCADE[sa] && CASCADE[sa].ls_by_ms[ms]) {
+    items = CASCADE[sa].ls_by_ms[ms];
+  } else if (sa && CASCADE[sa]) {
+    items = Object.values(CASCADE[sa].ls_by_ms).flat().sort();
+  } else {
+    items = DATA.ls_names;
+  }
+  items.forEach(v => { const o=document.createElement('option'); o.value=v; o.textContent=v; el.appendChild(o); });
+  el.value = items.includes(prev) ? prev : '';
+}
+
+// Initial population (SA defaults to first)
+const initSA = 'BW';
+document.getElementById('f-sa').value = initSA;
+repopMS('f-ms', initSA);
+repopLS('f-ls', initSA, '');
+
+
+// Page 1 cascade wiring
+document.getElementById('f-sa').addEventListener('change', function() {
+  repopMS('f-ms', this.value);
+  repopLS('f-ls', this.value, '');
+  refreshP1();
+});
+document.getElementById('f-ms').addEventListener('change', function() {
+  const sa = document.getElementById('f-sa').value;
+  repopLS('f-ls', sa, this.value);
+  refreshP1();
+});
+document.getElementById('f-ls').addEventListener('change', refreshP1);
+
+
+
+// Map
+const leafMap = L.map('map').setView([29.76,-95.37],9);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png',
+  {attribution:'© OSM © CARTO',maxZoom:19,subdomains:'abcd'}).addTo(leafMap);
+const markerLayer = L.layerGroup().addTo(leafMap);
+
+function updateMap(sa,ms,ls,fm) {
+  markerLayer.clearLayers();
+  const p = DATA.map_points;
+  const any = sa||ms||ls||fm;
+  const visibleMS = new Set();
+  for (let i=0;i<p.lats.length;i++) {
+    if (sa&&p.sa[i]!==sa) continue;
+    if (ms&&p.ms[i]!==ms) continue;
+    if (ls&&p.ls[i]!==ls) continue;
+    if (fm&&p.fm[i]!==fm) continue;
+    const c = MS_COLORS[p.ms[i]]||'#5da8ff';
+    if (p.ms[i]) visibleMS.add(p.ms[i]);
+    L.circleMarker([p.lats[i],p.lons[i]],{radius:any?5:3,color:c,fillColor:c,fillOpacity:0.82,weight:0})
+     .bindTooltip(`<b>${p.ms[i]||p.sa[i]}</b><br><span style="opacity:.75">${p.sa[i]}</span>`,{sticky:true}).addTo(markerLayer);
+  }
+  // Update MS legend
+  const leg = document.getElementById('map-ms-legend');
+  if (leg) {
+    if (visibleMS.size > 0 && visibleMS.size <= 30) {
+      leg.innerHTML = [...visibleMS].sort().map(m=>
+        `<span class="ms-leg-item"><span class="ms-leg-dot" style="background:${MS_COLORS[m]||'#5da8ff'}"></span>${m}</span>`
+      ).join('');
+      leg.style.display = 'flex';
+    } else {
+      leg.style.display = 'none';
+    }
+  }
+  if      (sa&&DATA.map_sa_centers[sa]) leafMap.setView(DATA.map_sa_centers[sa],12);
+  else if (ms&&DATA.map_ms_centers[ms]) leafMap.setView(DATA.map_ms_centers[ms],12);
+  else leafMap.setView([29.76,-95.37],9);
+}
+
+function getFlow(sa,ms) { return sa?DATA.by_sa[sa]||DATA.city:ms?DATA.by_ms[ms]||DATA.city:DATA.city; }
+function yIdx(yr)  { return DATA.years.indexOf(yr); }
+function pIdx(yr)  { return DATA.pop_years.indexOf(yr); }
+function fmtK(n)   { return n>=1e6?(n/1e6).toFixed(1)+'M':n>=1000?(n/1000).toFixed(1)+'K':(+n).toFixed(1); }
+
+const CHARTS = {};
+function mkChart(id,cfg) { if(CHARTS[id])CHARTS[id].destroy(); CHARTS[id]=new Chart(document.getElementById(id),cfg); }
+
+function updatePop(sa,ms) {
+  const d=getFlow(sa,ms), v=d.pop&&d.pop[pIdx(2020)]?d.pop[pIdx(2020)]:null;
+  document.getElementById('pop-val').textContent = v?fmtK(v):'-';
+}
+
+function buildCombo(sa,ms) {
+  const d=getFlow(sa,ms), labels=DATA.years.map(String);
+  const dl = {display:true,color:'#ffffffcc',font:{size:7,weight:'bold'},
+              formatter:v=>v>0?v.toFixed(1):'',anchor:'center',align:'center',clamp:true};
+  const totalDL = {display:true,anchor:'end',align:'end',offset:3,
+    formatter:(v,ctx)=>((d.res[ctx.dataIndex]||0)+(d.base[ctx.dataIndex]||0)+(d.trade[ctx.dataIndex]||0)).toFixed(2),
+    color:'#dde6f0',font:{size:7,weight:'bold'},
+    backgroundColor:'rgba(15,28,45,0.82)',borderColor:'rgba(139,175,214,0.3)',
+    borderWidth:1,borderRadius:3,padding:{top:2,bottom:2,left:4,right:4}};
+  const ds=[
+    {type:'bar',label:'Proj TradeFlow',data:d.trade,backgroundColor:'#f9731688',stack:'s',order:3,datalabels:dl},
+    {type:'bar',label:'Proj Baseflow', data:d.base, backgroundColor:'#9ca3af88',stack:'s',order:3,datalabels:dl},
+    {type:'bar',label:'Proj ResFlow',  data:d.res,  backgroundColor:'#5da8ff88',stack:'s',order:3,datalabels:dl},
+    {type:'bar',label:'_total',data:DATA.years.map(()=>0),backgroundColor:'transparent',borderWidth:0,stack:'s',order:3,datalabels:totalDL},
+    {type:'line',label:'Sum of Proj Flow',data:d.total,borderColor:'#a855f7',borderWidth:2,
+     pointRadius:2,pointBackgroundColor:'#a855f7',fill:false,tension:0.3,order:1,datalabels:{display:false}},
+  ];
+  if(d.permit){
+    ds.push({type:'line',label:'75%',data:DATA.years.map(()=>d.permit*.75),borderColor:'#e2aa30',borderWidth:1.5,borderDash:[8,4],pointRadius:0,fill:false,order:0,datalabels:{display:false}});
+    ds.push({type:'line',label:'90%',data:DATA.years.map(()=>d.permit*.9), borderColor:'#cf4336',borderWidth:1.5,borderDash:[4,4], pointRadius:0,fill:false,order:0,datalabels:{display:false}});
+  }
+  mkChart('comboChart',{type:'bar',data:{labels,datasets:ds},options:{
+    responsive:true,maintainAspectRatio:false,
+    plugins:{legend:{display:false},tooltip:{...TT,mode:'index',intersect:false},datalabels:{}},
+    scales:{
+      x:{ticks:{color:TICK,font:{size:9}},grid:{color:GRID},stacked:true},
+      y:{ticks:{color:TICK,font:{size:9}},grid:{color:GRID},title:{display:true,text:'MGD',color:TICK,font:{size:9}}}
+    }
+  }});
+}
+
+function buildDonut(id,pctId,sa,ms,yr) {
+  const d=getFlow(sa,ms), i=yIdx(yr);
+  if(i<0||!d.res||!d.res[i]) return;
+  const vals=[d.res[i],d.base[i]||0,d.trade[i]||0];
+  const tot=vals.reduce((a,b)=>a+b,0);
+  mkChart(id,{type:'doughnut',
+    data:{labels:['ResFlow','Baseflow','TradeFlow'],datasets:[{data:vals,backgroundColor:['#5da8ff','#9ca3af','#f97316'],borderWidth:0,hoverOffset:3}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',
+      plugins:{legend:{display:false},tooltip:{...TT,callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw.toFixed(2)} MGD (${(ctx.raw/tot*100).toFixed(1)}%)`}},datalabels:{display:false}}}
+  });
+  if(tot>0) document.getElementById(pctId).innerHTML=
+    `<span class="pct-base">${(vals[1]/tot*100).toFixed(1)}%</span>`+
+    `<span class="pct-res">${(vals[0]/tot*100).toFixed(1)}%</span>`+
+    `<span class="pct-trade">${(vals[2]/tot*100).toFixed(1)}%</span>`;
+}
+
+function refreshP1() {
+  const sa=document.getElementById('f-sa').value, ms=document.getElementById('f-ms').value,
+        ls=document.getElementById('f-ls').value, fm='';
+  updateMap(sa,ms,ls,fm); updatePop(sa,ms); buildCombo(sa,ms);
+  buildDonut('d2024','pct2024',sa,ms,2024); buildDonut('d2045','pct2045',sa,ms,2045);
+  buildDonut('d2070','pct2070',sa,ms,2070); buildDonut('d2120','pct2120',sa,ms,2120);
+  const ap=document.querySelector('.tab-pane.active');
+  if(ap&&ap.id==='p2') buildDiurnalPage('p2');
+  if(ap&&ap.id==='p3') buildDiurnalPage('p3');
+}
+// event listeners wired in cascade block above
+
+const D_COLORS={2020:'#34d399',2045:'#fbbf24',2070:'#60a5fa',2120:'#f87171'};
+function getDiurnal(sheet,sa,ms){const s=DATA.diurnal_total[sheet];if(!s)return Array(24).fill(0);if(sa)return s.by_sa[sa]||Array(24).fill(0);if(ms)return s.by_ms[ms]||Array(24).fill(0);return s.city;}
+
+function buildDiurnalChart(id,vals,color) {
+  const avg=vals.reduce((a,b)=>a+b,0)/24;
+  mkChart(id,{type:'line',data:{labels:Array.from({length:24},(_,i)=>i),datasets:[
+    {label:'Flow',data:vals,borderColor:color,backgroundColor:color+'18',borderWidth:2,fill:true,tension:0.4,
+     pointRadius:2.5,pointBackgroundColor:color,
+     datalabels:{display:true,color:color,font:{size:7,weight:'bold'},formatter:v=>Math.round(v),anchor:'top',align:'top',offset:-1,clamp:true}},
+    {label:'Avg',data:Array(24).fill(avg),borderColor:'rgba(93,168,255,0.5)',borderWidth:1.5,borderDash:[5,4],
+     pointRadius:0,fill:false,
+     datalabels:{display:ctx=>ctx.dataIndex===0,color:'#7ab8f5',font:{size:8},formatter:v=>v.toFixed(2),anchor:'start',align:'bottom',offset:2}}
+  ]},options:{responsive:true,maintainAspectRatio:false,layout:{padding:{top:18,right:6}},
+    plugins:{legend:{display:false},tooltip:{...TT,callbacks:{title:ctx=>`Hour ${ctx[0].label}:00`,label:ctx=>ctx.dataset.label==='Flow'?` ${ctx.raw.toFixed(2)} MGD`:` Avg: ${avg.toFixed(2)} MGD`}},datalabels:{}},
+    scales:{x:{ticks:{color:TICK,font:{size:8}},grid:{color:GRID},title:{display:true,text:'Time',color:TICK,font:{size:9}}},
+            y:{ticks:{color:TICK,font:{size:8}},grid:{color:GRID},title:{display:true,text:'Flow',color:TICK,font:{size:9}}}}}
+  });
+}
+
+function buildDiurnalPage(page) {
+  const isWd=page==='p2';
+  const sa=document.getElementById('f-sa').value;
+  const ms=document.getElementById('f-ms').value;
+  const pfx=isWd?'wd':'we', sfx=isWd?'_WD':'_WE';
+  const sheets=Object.keys(DATA.diurnal_total).filter(s=>s.endsWith(sfx));
+  [2020,2045,2070,2120].forEach((yr,i)=>{
+    const vals=getDiurnal(sheets[i],sa,ms);
+    buildDiurnalChart(`d${pfx}${yr}`,vals,D_COLORS[yr]);
+    const tot=vals.reduce((a,b)=>a+b,0);
+    const el=document.getElementById(`sc-${pfx}${yr}`);
+    if(el) el.textContent=tot>=1000?(tot/1000).toFixed(1)+'K':tot.toFixed(1);
+  });
+}
+// diurnal listeners wired in cascade block above
+
+Chart.register(ChartDataLabels);
+refreshP1();
+buildDiurnalPage('p2');
+</script>
+</body>
+</html>
